@@ -79,7 +79,7 @@ This will create:
 npm run dev
 ```
 
-Server will run on `http://localhost:3005`
+Server will run on `https://aggregator-server.safeaven.com`
 
 ## API Endpoints
 

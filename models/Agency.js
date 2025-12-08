@@ -29,6 +29,7 @@ const agencySchema = new mongoose.Schema({
       "property",
       "relocation",
       "business",
+      "electricity",
     ],
   },
   about: {
@@ -110,6 +111,12 @@ const agencySchema = new mongoose.Schema({
   serviceAreas: {
     type: [String], // Additional cities/countries served
     default: [],
+  },
+  latitude: {
+    type: Number,
+  },
+  longitude: {
+    type: Number,
   },
   createdAt: {
     type: Date,

@@ -20,12 +20,12 @@ const seedData = async () => {
     await Country.deleteMany({});
     console.log("🗑️  Cleared existing data");
 
-    // Create countries
+    // Create countries with currency symbols
     const countries = await Country.create([
-      { name: "USA", currency: "USD" },
-      { name: "UK", currency: "GBP" },
-      { name: "UAE", currency: "AED" },
-      { name: "India", currency: "INR" },
+      { name: "USA", currency: "$" },
+      { name: "UK", currency: "£" },
+      { name: "Australia", currency: "A$" },
+      { name: "Canada", currency: "C$" },
     ]);
     console.log(`🌍 ${countries.length} countries created`);
 
@@ -51,7 +51,8 @@ const seedData = async () => {
     });
     console.log("👤 Customer user created: customer@demo.com / Customer@123");
 
-    // Create sample agencies
+    // Create sample agencies - only sim, bank, insurance, visa, travel, electricity
+    // Only in USA, UK, Australia, Canada with coordinates
     const agencyPassword = await bcrypt.hash("Agency@123", 10);
 
     const agencies = await Agency.create([
@@ -67,6 +68,8 @@ const seedData = async () => {
         address: "123 Tech Plaza, Suite 200",
         city: "New York",
         country: "USA",
+        latitude: 40.7128,
+        longitude: -74.006,
         logoUrl:
           "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop",
         images: [
@@ -95,6 +98,8 @@ const seedData = async () => {
         address: "456 Financial District, Canary Wharf",
         city: "London",
         country: "UK",
+        latitude: 51.5074,
+        longitude: -0.1278,
         logoUrl:
           "https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=400&h=400&fit=crop",
         images: [
@@ -123,6 +128,8 @@ const seedData = async () => {
         address: "789 Insurance Tower, Bay Street",
         city: "Toronto",
         country: "Canada",
+        latitude: 43.6532,
+        longitude: -79.3832,
         logoUrl:
           "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=400&h=400&fit=crop",
         images: [
@@ -146,11 +153,13 @@ const seedData = async () => {
         category: ["visa"],
         about:
           "Quick and reliable visa processing services for all countries. Expert guidance, fast turnaround times, and 99% approval rate. We handle everything from document preparation to embassy submissions.",
-        phone: "+971-4-555-0123",
+        phone: "+1-310-555-0123",
         website: "https://fastvisa.example.com",
-        address: "321 Embassy District, Business Bay",
-        city: "Dubai",
-        country: "UAE",
+        address: "321 Embassy District, Downtown",
+        city: "Los Angeles",
+        country: "USA",
+        latitude: 34.0522,
+        longitude: -118.2437,
         logoUrl:
           "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?w=400&h=400&fit=crop",
         images: [
@@ -179,6 +188,8 @@ const seedData = async () => {
         address: "555 Broadway, Suite 200",
         city: "New York",
         country: "USA",
+        latitude: 40.7589,
+        longitude: -73.9851,
         logoUrl:
           "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=400&h=400&fit=crop",
         images: [
@@ -196,27 +207,89 @@ const seedData = async () => {
         isApproved: true,
       },
       {
-        name: "Elite Realty Group",
-        email: "elite@demo.com",
+        name: "PowerGrid Solutions",
+        email: "electricity@demo.com",
         passwordHash: agencyPassword,
-        category: ["property"],
+        category: ["electricity"],
         about:
-          "Premium real estate services in the United States. Specializing in luxury properties, investment opportunities, and relocation services. Our expert team provides personalized service to help you find your dream home.",
-        phone: "+1-310-555-0123",
-        website: "https://eliterealty.example.com",
-        address: "456 Sunset Boulevard, Suite 500",
-        city: "Los Angeles",
-        country: "USA",
+          "Professional electricity and utility services for homes and businesses. We help you set up electricity connections, manage utility bills, and provide 24/7 support for all your power needs. Serving customers across major cities.",
+        phone: "+61-2-9876-5432",
+        website: "https://powergrid.example.com",
+        address: "789 Energy Plaza, George Street",
+        city: "Sydney",
+        country: "Australia",
+        latitude: -33.8688,
+        longitude: 151.2093,
         logoUrl:
-          "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=400&h=400&fit=crop",
+          "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop",
         images: [
           {
-            url: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=600&fit=crop",
+            url: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=600&fit=crop",
             isThumbnail: true,
             category: "exterior",
           },
           {
-            url: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=600&fit=crop",
+            url: "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=800&h=600&fit=crop",
+            isThumbnail: false,
+            category: "services",
+          },
+        ],
+        isApproved: true,
+      },
+      {
+        name: "UK Visa Experts",
+        email: "ukvisa@demo.com",
+        passwordHash: agencyPassword,
+        category: ["visa"],
+        about:
+          "Specialized UK visa processing services. Expert guidance for work visas, student visas, family visas, and settlement applications. Fast processing with high success rates. Trusted by thousands of applicants.",
+        phone: "+44-20-7946-0123",
+        website: "https://ukvisa.example.com",
+        address: "123 Mayfair Square",
+        city: "London",
+        country: "UK",
+        latitude: 51.5155,
+        longitude: -0.1441,
+        logoUrl:
+          "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?w=400&h=400&fit=crop",
+        images: [
+          {
+            url: "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?w=800&h=600&fit=crop",
+            isThumbnail: true,
+            category: "exterior",
+          },
+          {
+            url: "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=800&h=600&fit=crop",
+            isThumbnail: false,
+            category: "services",
+          },
+        ],
+        isApproved: true,
+      },
+      {
+        name: "Aussie Travel Co",
+        email: "ausstravel@demo.com",
+        passwordHash: agencyPassword,
+        category: ["travel"],
+        about:
+          "Premier travel agency specializing in Australian destinations and international travel. From outback adventures to beach getaways, we create memorable travel experiences. Book your dream vacation with us today.",
+        phone: "+61-3-9876-5432",
+        website: "https://aussietravel.example.com",
+        address: "456 Collins Street",
+        city: "Melbourne",
+        country: "Australia",
+        latitude: -37.8136,
+        longitude: 144.9631,
+        logoUrl:
+          "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=400&h=400&fit=crop",
+        images: [
+          {
+            url: "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&h=600&fit=crop",
+            isThumbnail: true,
+            category: "exterior",
+          },
+          {
+            url: "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800&h=600&fit=crop",
             isThumbnail: false,
             category: "office",
           },
@@ -224,27 +297,59 @@ const seedData = async () => {
         isApproved: true,
       },
       {
-        name: "London Property Partners",
-        email: "london@demo.com",
+        name: "Canadian Bank Services",
+        email: "canbank@demo.com",
         passwordHash: agencyPassword,
-        category: ["property"],
+        category: ["bank"],
         about:
-          "Established real estate agency serving London and surrounding areas. We offer comprehensive property services including sales, lettings, and property management. Trusted by thousands of clients across the UK.",
-        phone: "+44-20-7946-0123",
-        website: "https://londonproperty.example.com",
-        address: "123 Mayfair Square",
-        city: "London",
-        country: "UK",
+          "Comprehensive banking services for newcomers and residents in Canada. Account opening, credit cards, mortgages, and investment services. Helping you manage your finances with ease and confidence.",
+        phone: "+1-416-555-0456",
+        website: "https://canbank.example.com",
+        address: "789 Bay Street, Financial District",
+        city: "Toronto",
+        country: "Canada",
+        latitude: 43.6532,
+        longitude: -79.3832,
         logoUrl:
-          "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=400&h=400&fit=crop",
+          "https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=400&h=400&fit=crop",
         images: [
           {
-            url: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=600&fit=crop",
+            url: "https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=800&h=600&fit=crop",
             isThumbnail: true,
             category: "exterior",
           },
           {
-            url: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=600&fit=crop",
+            url: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=600&fit=crop",
+            isThumbnail: false,
+            category: "office",
+          },
+        ],
+        isApproved: true,
+      },
+      {
+        name: "Sydney Insurance Group",
+        email: "sydneyinsurance@demo.com",
+        passwordHash: agencyPassword,
+        category: ["insurance"],
+        about:
+          "Leading insurance provider in Australia. Comprehensive coverage for health, travel, home, and vehicle insurance. Competitive rates and excellent customer service. Protect what matters most to you.",
+        phone: "+61-2-9876-0123",
+        website: "https://sydneyinsurance.example.com",
+        address: "123 Pitt Street",
+        city: "Sydney",
+        country: "Australia",
+        latitude: -33.8688,
+        longitude: 151.2093,
+        logoUrl:
+          "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=400&h=400&fit=crop",
+        images: [
+          {
+            url: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=800&h=600&fit=crop",
+            isThumbnail: true,
+            category: "exterior",
+          },
+          {
+            url: "https://images.unsplash.com/photo-1554224154-26032844c514?w=800&h=600&fit=crop",
             isThumbnail: false,
             category: "reception",
           },
@@ -252,27 +357,90 @@ const seedData = async () => {
         isApproved: true,
       },
       {
-        name: "Dubai Luxury Properties",
-        email: "dubai@demo.com",
+        name: "Vancouver SIM Cards",
+        email: "vancouversim@demo.com",
         passwordHash: agencyPassword,
-        category: ["property"],
+        category: ["sim"],
         about:
-          "Exclusive real estate agency specializing in luxury properties in Dubai and UAE. From penthouses to villas, we offer the finest selection of premium properties with world-class amenities and stunning views.",
-        phone: "+971-4-555-0124",
-        website: "https://dubailuxury.example.com",
-        address: "456 Sheikh Zayed Road, Business Bay",
-        city: "Dubai",
-        country: "UAE",
+          "Affordable SIM cards and mobile plans for travelers and residents in Canada. Stay connected with our reliable network coverage. Prepaid and postpaid options available. Visit us for the best deals on mobile connectivity.",
+        phone: "+1-604-555-0123",
+        website: "https://vancouversim.example.com",
+        address: "456 Robson Street",
+        city: "Vancouver",
+        country: "Canada",
+        latitude: 49.2827,
+        longitude: -123.1207,
         logoUrl:
-          "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=400&h=400&fit=crop",
+          "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop",
         images: [
           {
-            url: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=600&fit=crop",
+            url: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=600&fit=crop",
             isThumbnail: true,
             category: "exterior",
           },
           {
-            url: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=600&fit=crop",
+            url: "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=800&h=600&fit=crop",
+            isThumbnail: false,
+            category: "services",
+          },
+        ],
+        isApproved: true,
+      },
+      {
+        name: "Manchester Electricity Services",
+        email: "manchesterelectricity@demo.com",
+        passwordHash: agencyPassword,
+        category: ["electricity"],
+        about:
+          "Professional electricity and utility services in Manchester and surrounding areas. We help with new connections, meter readings, bill management, and energy efficiency solutions. Your trusted partner for all power needs.",
+        phone: "+44-161-555-0123",
+        website: "https://manchesterelectricity.example.com",
+        address: "789 Deansgate",
+        city: "Manchester",
+        country: "UK",
+        latitude: 53.4808,
+        longitude: -2.2426,
+        logoUrl:
+          "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop",
+        images: [
+          {
+            url: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=600&fit=crop",
+            isThumbnail: true,
+            category: "exterior",
+          },
+          {
+            url: "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=800&h=600&fit=crop",
+            isThumbnail: false,
+            category: "services",
+          },
+        ],
+        isApproved: true,
+      },
+      // Additional agencies to complete all types in all countries
+      {
+        name: "American Bank Services",
+        email: "usabank@demo.com",
+        passwordHash: agencyPassword,
+        category: ["bank"],
+        about:
+          "Premier banking services in the United States. Personal and business accounts, loans, mortgages, and investment services. Trusted by millions of customers nationwide with excellent customer service and competitive rates.",
+        phone: "+1-212-555-0456",
+        website: "https://usabank.example.com",
+        address: "789 Wall Street",
+        city: "New York",
+        country: "USA",
+        latitude: 40.7074,
+        longitude: -74.0113,
+        logoUrl:
+          "https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=400&h=400&fit=crop",
+        images: [
+          {
+            url: "https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=800&h=600&fit=crop",
+            isThumbnail: true,
+            category: "exterior",
+          },
+          {
+            url: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=600&fit=crop",
             isThumbnail: false,
             category: "office",
           },
@@ -280,45 +448,199 @@ const seedData = async () => {
         isApproved: true,
       },
       {
-        name: "India Property Experts",
-        email: "property@demo.com",
+        name: "USA Insurance Group",
+        email: "usainsurance@demo.com",
         passwordHash: agencyPassword,
-        category: ["property"],
+        category: ["insurance"],
         about:
-          "Leading real estate agency in India specializing in premium residential and commercial properties. Over 20 years of experience helping clients find their perfect home or investment property across major Indian cities.",
-        phone: "+91-22-5555-0123",
-        website: "https://indiaproperty.example.com",
-        address: "789 Business Tower, Bandra Kurla Complex",
-        city: "Mumbai",
-        country: "India",
+          "Comprehensive insurance solutions for individuals and businesses in the USA. Health, life, auto, home, and business insurance with competitive rates and excellent coverage. Get protected today with our trusted services.",
+        phone: "+1-312-555-0123",
+        website: "https://usainsurance.example.com",
+        address: "456 Insurance Avenue",
+        city: "Chicago",
+        country: "USA",
+        latitude: 41.8781,
+        longitude: -87.6298,
         logoUrl:
-          "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=400&h=400&fit=crop",
+          "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=400&h=400&fit=crop",
         images: [
           {
-            url: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=600&fit=crop",
+            url: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=800&h=600&fit=crop",
             isThumbnail: true,
             category: "exterior",
           },
           {
-            url: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=600&fit=crop",
+            url: "https://images.unsplash.com/photo-1554224154-26032844c514?w=800&h=600&fit=crop",
             isThumbnail: false,
-            category: "other",
+            category: "reception",
           },
         ],
         isApproved: true,
       },
       {
-        name: "UK Relocation Services",
-        email: "relocation@demo.com",
+        name: "USA Power Solutions",
+        email: "usaelectricity@demo.com",
         passwordHash: agencyPassword,
-        category: ["relocation"],
+        category: ["electricity"],
         about:
-          "Complete relocation services for individuals and families moving to the UK. We assist with visa processing, housing, school enrollment, and settling-in services. Making your move to the UK seamless and stress-free.",
+          "Professional electricity and utility services across the United States. We help with new connections, energy efficiency solutions, bill management, and 24/7 customer support. Your trusted partner for all power needs.",
+        phone: "+1-415-555-0123",
+        website: "https://usapower.example.com",
+        address: "123 Energy Plaza",
+        city: "San Francisco",
+        country: "USA",
+        latitude: 37.7749,
+        longitude: -122.4194,
+        logoUrl:
+          "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop",
+        images: [
+          {
+            url: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=600&fit=crop",
+            isThumbnail: true,
+            category: "exterior",
+          },
+          {
+            url: "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=800&h=600&fit=crop",
+            isThumbnail: false,
+            category: "services",
+          },
+        ],
+        isApproved: true,
+      },
+      {
+        name: "UK SIM Services",
+        email: "uksim@demo.com",
+        passwordHash: agencyPassword,
+        category: ["sim"],
+        about:
+          "Affordable SIM cards and mobile plans for travelers and residents in the UK. Stay connected with our reliable network coverage across the country. Prepaid and postpaid options available with excellent customer service.",
         phone: "+44-20-7946-0456",
-        website: "https://ukrelocation.example.com",
+        website: "https://uksim.example.com",
         address: "321 Oxford Street",
         city: "London",
         country: "UK",
+        latitude: 51.5155,
+        longitude: -0.1419,
+        logoUrl:
+          "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop",
+        images: [
+          {
+            url: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=600&fit=crop",
+            isThumbnail: true,
+            category: "exterior",
+          },
+          {
+            url: "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=800&h=600&fit=crop",
+            isThumbnail: false,
+            category: "services",
+          },
+        ],
+        isApproved: true,
+      },
+      {
+        name: "UK Insurance Partners",
+        email: "ukinsurance@demo.com",
+        passwordHash: agencyPassword,
+        category: ["insurance"],
+        about:
+          "Leading insurance provider in the United Kingdom. Comprehensive coverage for health, travel, home, vehicle, and business insurance. Competitive rates and excellent customer service. Protect what matters most to you.",
+        phone: "+44-20-7946-0789",
+        website: "https://ukinsurance.example.com",
+        address: "456 Canary Wharf",
+        city: "London",
+        country: "UK",
+        latitude: 51.5045,
+        longitude: -0.0185,
+        logoUrl:
+          "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=400&h=400&fit=crop",
+        images: [
+          {
+            url: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=800&h=600&fit=crop",
+            isThumbnail: true,
+            category: "exterior",
+          },
+          {
+            url: "https://images.unsplash.com/photo-1554224154-26032844c514?w=800&h=600&fit=crop",
+            isThumbnail: false,
+            category: "reception",
+          },
+        ],
+        isApproved: true,
+      },
+      {
+        name: "UK Travel Experts",
+        email: "uktravel@demo.com",
+        passwordHash: agencyPassword,
+        category: ["travel"],
+        about:
+          "Premier travel agency specializing in UK destinations and international travel. From city breaks to countryside escapes, we create memorable travel experiences. Book your dream vacation with us today.",
+        phone: "+44-20-7946-0321",
+        website: "https://uktravel.example.com",
+        address: "789 Regent Street",
+        city: "London",
+        country: "UK",
+        latitude: 51.5104,
+        longitude: -0.1396,
+        logoUrl:
+          "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=400&h=400&fit=crop",
+        images: [
+          {
+            url: "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&h=600&fit=crop",
+            isThumbnail: true,
+            category: "exterior",
+          },
+          {
+            url: "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800&h=600&fit=crop",
+            isThumbnail: false,
+            category: "office",
+          },
+        ],
+        isApproved: true,
+      },
+      {
+        name: "Australian SIM Cards",
+        email: "aussim@demo.com",
+        passwordHash: agencyPassword,
+        category: ["sim"],
+        about:
+          "Affordable SIM cards and mobile plans for travelers and residents in Australia. Stay connected with our reliable network coverage across the country. Prepaid and postpaid options available with excellent customer service.",
+        phone: "+61-2-9876-0456",
+        website: "https://aussim.example.com",
+        address: "123 George Street",
+        city: "Sydney",
+        country: "Australia",
+        latitude: -33.8688,
+        longitude: 151.2093,
+        logoUrl:
+          "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop",
+        images: [
+          {
+            url: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=600&fit=crop",
+            isThumbnail: true,
+            category: "exterior",
+          },
+          {
+            url: "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=800&h=600&fit=crop",
+            isThumbnail: false,
+            category: "services",
+          },
+        ],
+        isApproved: true,
+      },
+      {
+        name: "Australian Bank Services",
+        email: "ausbank@demo.com",
+        passwordHash: agencyPassword,
+        category: ["bank"],
+        about:
+          "Comprehensive banking services for newcomers and residents in Australia. Account opening, credit cards, mortgages, and investment services. Helping you manage your finances with ease and confidence.",
+        phone: "+61-3-9876-0456",
+        website: "https://ausbank.example.com",
+        address: "456 Collins Street",
+        city: "Melbourne",
+        country: "Australia",
+        latitude: -37.8136,
+        longitude: 144.9631,
         logoUrl:
           "https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=400&h=400&fit=crop",
         images: [
@@ -330,63 +652,127 @@ const seedData = async () => {
           {
             url: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=600&fit=crop",
             isThumbnail: false,
-            category: "meeting-room",
+            category: "office",
           },
         ],
         isApproved: true,
       },
       {
-        name: "UAE Business Services",
-        email: "business@demo.com",
+        name: "Australian Visa Services",
+        email: "ausvisa@demo.com",
         passwordHash: agencyPassword,
-        category: ["business"],
+        category: ["visa"],
         about:
-          "Comprehensive business setup and consulting services in the UAE. We help entrepreneurs and companies establish their presence in Dubai and Abu Dhabi with company registration, licensing, and ongoing support.",
-        phone: "+971-4-555-0456",
-        website: "https://uaebusiness.example.com",
-        address: "789 Business Center, DIFC",
-        city: "Dubai",
-        country: "UAE",
+          "Specialized Australian visa processing services. Expert guidance for work visas, student visas, family visas, and permanent residency applications. Fast processing with high success rates. Trusted by thousands of applicants.",
+        phone: "+61-2-9876-0321",
+        website: "https://ausvisa.example.com",
+        address: "789 Pitt Street",
+        city: "Sydney",
+        country: "Australia",
+        latitude: -33.8688,
+        longitude: 151.2093,
         logoUrl:
-          "https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=400&h=400&fit=crop",
+          "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?w=400&h=400&fit=crop",
         images: [
           {
-            url: "https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=800&h=600&fit=crop",
+            url: "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?w=800&h=600&fit=crop",
             isThumbnail: true,
             category: "exterior",
           },
           {
-            url: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=600&fit=crop",
+            url: "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=800&h=600&fit=crop",
             isThumbnail: false,
-            category: "facilities",
+            category: "services",
           },
         ],
         isApproved: true,
       },
       {
-        name: "Mumbai Real Estate Solutions",
-        email: "mumbai@demo.com",
+        name: "Canadian Visa Experts",
+        email: "canvisa@demo.com",
         passwordHash: agencyPassword,
-        category: ["property"],
+        category: ["visa"],
         about:
-          "Premier real estate consultancy in Mumbai. Specializing in residential and commercial properties across South Mumbai, Bandra, and Powai. Expert guidance for buying, selling, and renting properties in India's financial capital.",
-        phone: "+91-22-6666-0123",
-        website: "https://mumbairealestate.example.com",
-        address: "123 Marine Drive, Colaba",
-        city: "Mumbai",
-        country: "India",
+          "Specialized Canadian visa processing services. Expert guidance for work permits, study permits, visitor visas, and permanent residency applications. Fast processing with high success rates. Trusted by thousands of applicants.",
+        phone: "+1-416-555-0321",
+        website: "https://canvisa.example.com",
+        address: "123 Bay Street",
+        city: "Toronto",
+        country: "Canada",
+        latitude: 43.6532,
+        longitude: -79.3832,
         logoUrl:
-          "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=400&h=400&fit=crop",
+          "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?w=400&h=400&fit=crop",
         images: [
           {
-            url: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=600&fit=crop",
+            url: "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?w=800&h=600&fit=crop",
             isThumbnail: true,
             category: "exterior",
           },
           {
-            url: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=600&fit=crop",
+            url: "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=800&h=600&fit=crop",
             isThumbnail: false,
-            category: "facilities",
+            category: "services",
+          },
+        ],
+        isApproved: true,
+      },
+      {
+        name: "Canadian Travel Co",
+        email: "cantravel@demo.com",
+        passwordHash: agencyPassword,
+        category: ["travel"],
+        about:
+          "Premier travel agency specializing in Canadian destinations and international travel. From mountain adventures to city escapes, we create memorable travel experiences. Book your dream vacation with us today.",
+        phone: "+1-604-555-0456",
+        website: "https://cantravel.example.com",
+        address: "789 Robson Street",
+        city: "Vancouver",
+        country: "Canada",
+        latitude: 49.2827,
+        longitude: -123.1207,
+        logoUrl:
+          "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=400&h=400&fit=crop",
+        images: [
+          {
+            url: "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&h=600&fit=crop",
+            isThumbnail: true,
+            category: "exterior",
+          },
+          {
+            url: "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800&h=600&fit=crop",
+            isThumbnail: false,
+            category: "office",
+          },
+        ],
+        isApproved: true,
+      },
+      {
+        name: "Canadian Power Solutions",
+        email: "canelectricity@demo.com",
+        passwordHash: agencyPassword,
+        category: ["electricity"],
+        about:
+          "Professional electricity and utility services across Canada. We help with new connections, energy efficiency solutions, bill management, and 24/7 customer support. Your trusted partner for all power needs.",
+        phone: "+1-416-555-0789",
+        website: "https://canpower.example.com",
+        address: "456 Energy Street",
+        city: "Toronto",
+        country: "Canada",
+        latitude: 43.6532,
+        longitude: -79.3832,
+        logoUrl:
+          "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop",
+        images: [
+          {
+            url: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=600&fit=crop",
+            isThumbnail: true,
+            category: "exterior",
+          },
+          {
+            url: "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=800&h=600&fit=crop",
+            isThumbnail: false,
+            category: "services",
           },
         ],
         isApproved: true,
@@ -396,7 +782,7 @@ const seedData = async () => {
       `🏢 ${agencies.length} agencies created (all with password: Agency@123)`
     );
 
-    // Create sample properties with photo objects
+    // Create sample properties - only in USA, UK, Australia, Canada with currency symbols
     const properties = await Property.create([
       {
         ownerType: "User",
@@ -405,7 +791,7 @@ const seedData = async () => {
         description:
           "Beautiful studio apartment in the heart of Manhattan with amazing city views. Fully furnished with modern amenities, high-speed WiFi, and access to building gym and rooftop terrace. Perfect for professionals and digital nomads. Located in SoHo, walking distance to subway, restaurants, and shopping.",
         price: 2500,
-        currency: "USD",
+        currency: "$",
         city: "New York",
         country: "USA",
         photos: [
@@ -446,7 +832,7 @@ const seedData = async () => {
         description:
           "Charming 2-bedroom apartment near Hyde Park. Victorian building with modern interior, fully equipped kitchen, and private balcony. Quiet residential area with excellent transport links. Perfect for families or professionals seeking a peaceful retreat in central London.",
         price: 2000,
-        currency: "GBP",
+        currency: "£",
         city: "London",
         country: "UK",
         photos: [
@@ -488,14 +874,14 @@ const seedData = async () => {
       },
       {
         ownerType: "Agency",
-        owner: agencies[4]._id,
-        title: "Luxury Villa in Dubai",
+        owner: agencies[5]._id,
+        title: "Luxury Apartment in Sydney",
         description:
-          "Stunning 4-bedroom villa with private pool and beach access. Ultra-modern design with floor-to-ceiling windows, marble finishes, and smart home technology. Located in Palm Jumeirah with direct beach access. Includes private parking, security, and concierge services.",
-        price: 8000,
-        currency: "AED",
-        city: "Dubai",
-        country: "UAE",
+          "Stunning 3-bedroom apartment with harbor views. Ultra-modern design with floor-to-ceiling windows, premium finishes, and smart home technology. Located in Circular Quay with easy access to Opera House and CBD. Includes private parking, security, and concierge services.",
+        price: 3500,
+        currency: "A$",
+        city: "Sydney",
+        country: "Australia",
         photos: [
           {
             url: "https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800&h=600&fit=crop",
@@ -536,21 +922,21 @@ const seedData = async () => {
         furnished: true,
         petsAllowed: false,
         availableFrom: new Date("2024-03-01"),
-        latitude: 25.1124,
-        longitude: 55.139,
+        latitude: -33.8688,
+        longitude: 151.2093,
         featured: true,
         active: true,
       },
       {
         ownerType: "Agency",
-        owner: agencies[4]._id,
-        title: "Penthouse in Singapore",
+        owner: agencies[7]._id,
+        title: "Modern Apartment in Melbourne",
         description:
-          "Ultra-modern penthouse with panoramic city views. Spacious 3-bedroom unit on the 45th floor with private terrace, infinity pool, and premium finishes. Located in Marina Bay area with world-class amenities including gym, spa, and 24/7 concierge.",
-        price: 5000,
-        currency: "SGD",
-        city: "Mumbai",
-        country: "India",
+          "Ultra-modern apartment with panoramic city views. Spacious 2-bedroom unit with private balcony, premium finishes, and access to building amenities. Located in CBD with world-class amenities including gym, pool, and 24/7 concierge.",
+        price: 2200,
+        currency: "A$",
+        city: "Melbourne",
+        country: "Australia",
         photos: [
           {
             url: "https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?w=800&h=600&fit=crop",
@@ -568,39 +954,38 @@ const seedData = async () => {
             category: "bedroom",
           },
         ],
-        bedrooms: 3,
-        bathrooms: 3,
-        area: 2200,
+        bedrooms: 2,
+        bathrooms: 2,
+        area: 1200,
         areaUnit: "sqft",
-        propertyType: "condo",
+        propertyType: "apartment",
         amenities: [
           "Pool",
           "Gym",
-          "Spa",
           "Concierge",
           "Parking",
-          "Terrace",
+          "Balcony",
           "WiFi",
-          "Smart Home",
+          "Air Conditioning",
         ],
         furnished: true,
         petsAllowed: false,
         availableFrom: new Date("2024-02-20"),
-        latitude: 1.2801,
-        longitude: 103.8509,
+        latitude: -37.8136,
+        longitude: 144.9631,
         featured: true,
         active: true,
       },
       {
         ownerType: "User",
         owner: customer._id,
-        title: "Beach House in Bali",
+        title: "Beach House in Gold Coast",
         description:
-          "Relaxing beach house perfect for digital nomads. Traditional Balinese design meets modern comfort. Steps from the beach, with outdoor workspace, fast WiFi, and stunning ocean views. Surrounded by rice paddies and tropical gardens. Ideal for remote workers seeking inspiration.",
-        price: 1200,
-        currency: "USD",
-        city: "Bali",
-        country: "Indonesia",
+          "Relaxing beach house perfect for digital nomads. Modern design meets coastal comfort. Steps from the beach, with outdoor workspace, fast WiFi, and stunning ocean views. Surrounded by parks and cafes. Ideal for remote workers seeking inspiration.",
+        price: 1800,
+        currency: "A$",
+        city: "Gold Coast",
+        country: "Australia",
         photos: [
           {
             url: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&h=600&fit=crop",
@@ -634,8 +1019,8 @@ const seedData = async () => {
         furnished: true,
         petsAllowed: true,
         availableFrom: new Date("2024-02-10"),
-        latitude: -8.3405,
-        longitude: 115.092,
+        latitude: -28.0167,
+        longitude: 153.4,
         featured: false,
         active: true,
       },
@@ -646,7 +1031,7 @@ const seedData = async () => {
         description:
           "Spacious loft in downtown Toronto with modern amenities. Converted warehouse space with high ceilings, exposed brick, and large windows. Located in the Entertainment District, walking distance to CN Tower, restaurants, and nightlife. Perfect for urban professionals.",
         price: 1800,
-        currency: "CAD",
+        currency: "C$",
         city: "Toronto",
         country: "Canada",
         photos: [
@@ -690,13 +1075,13 @@ const seedData = async () => {
       {
         ownerType: "Agency",
         owner: agencies[0]._id,
-        title: "Luxury Apartment in Paris",
+        title: "Luxury Apartment in Vancouver",
         description:
-          "Elegant 2-bedroom apartment in the heart of Paris, near the Eiffel Tower. Classic Parisian architecture with modern renovations. High ceilings, hardwood floors, and a charming balcony overlooking the city. Perfect for experiencing the Parisian lifestyle.",
+          "Elegant 2-bedroom apartment in the heart of Vancouver, near Stanley Park. Modern architecture with premium renovations. High ceilings, hardwood floors, and a charming balcony overlooking the city. Perfect for experiencing the Vancouver lifestyle.",
         price: 2200,
-        currency: "EUR",
-        city: "Paris",
-        country: "France",
+        currency: "C$",
+        city: "Vancouver",
+        country: "Canada",
         photos: [
           {
             url: "https://images.unsplash.com/photo-1505843513577-22bb7d21e455?w=800&h=600&fit=crop",
@@ -723,21 +1108,21 @@ const seedData = async () => {
         furnished: true,
         petsAllowed: false,
         availableFrom: new Date("2024-03-01"),
-        latitude: 48.8566,
-        longitude: 2.3522,
+        latitude: 49.2827,
+        longitude: -123.1207,
         featured: true,
         active: true,
       },
       {
         ownerType: "User",
         owner: customer._id,
-        title: "Modern Condo in Tokyo",
+        title: "Modern Condo in Brisbane",
         description:
-          "Contemporary 1-bedroom condo in Shibuya district. Compact but efficiently designed with smart storage solutions. High-tech amenities, excellent public transport access, and surrounded by restaurants, cafes, and shopping. Ideal for solo professionals or couples.",
-        price: 1500,
-        currency: "USD",
-        city: "Tokyo",
-        country: "Japan",
+          "Contemporary 1-bedroom condo in Brisbane CBD. Compact but efficiently designed with smart storage solutions. High-tech amenities, excellent public transport access, and surrounded by restaurants, cafes, and shopping. Ideal for solo professionals or couples.",
+        price: 1200,
+        currency: "A$",
+        city: "Brisbane",
+        country: "Australia",
         photos: [
           {
             url: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop",
@@ -752,7 +1137,7 @@ const seedData = async () => {
         ],
         bedrooms: 1,
         bathrooms: 1,
-        area: 400,
+        area: 500,
         areaUnit: "sqft",
         propertyType: "condo",
         amenities: [
@@ -765,21 +1150,21 @@ const seedData = async () => {
         furnished: true,
         petsAllowed: false,
         availableFrom: new Date("2024-02-25"),
-        latitude: 35.6762,
-        longitude: 139.6503,
+        latitude: -27.4698,
+        longitude: 153.0251,
         featured: false,
         active: true,
       },
       {
         ownerType: "User",
         owner: customer._id,
-        title: "Modern Apartment in Mumbai",
+        title: "Modern Apartment in Montreal",
         description:
-          "Spacious 3-bedroom apartment in Bandra West. Modern amenities, sea views, and excellent connectivity. Located in a premium residential area with access to restaurants, shopping, and entertainment. Perfect for families or professionals.",
+          "Spacious 3-bedroom apartment in downtown Montreal. Modern amenities, city views, and excellent connectivity. Located in a premium residential area with access to restaurants, shopping, and entertainment. Perfect for families or professionals.",
         price: 1500,
-        currency: "USD",
-        city: "Mumbai",
-        country: "India",
+        currency: "C$",
+        city: "Montreal",
+        country: "Canada",
         photos: [
           {
             url: "https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?w=800&h=600&fit=crop",
@@ -818,21 +1203,21 @@ const seedData = async () => {
         furnished: true,
         petsAllowed: false,
         availableFrom: new Date("2024-03-05"),
-        latitude: 19.076,
-        longitude: 72.8777,
+        latitude: 45.5017,
+        longitude: -73.5673,
         featured: false,
         active: true,
       },
       {
         ownerType: "Agency",
         owner: agencies[0]._id,
-        title: "Luxury Apartment in Mumbai",
+        title: "Luxury Apartment in Calgary",
         description:
-          "Premium 4-bedroom apartment in Worli with sea views. Modern design with premium finishes, private balcony, and access to world-class amenities. Located in the heart of the city with easy access to business district and entertainment.",
-        price: 2500,
-        currency: "USD",
-        city: "Mumbai",
-        country: "India",
+          "Premium 4-bedroom apartment in Calgary with mountain views. Modern design with premium finishes, private balcony, and access to world-class amenities. Located in the heart of the city with easy access to business district and entertainment.",
+        price: 2000,
+        currency: "C$",
+        city: "Calgary",
+        country: "Canada",
         photos: [
           {
             url: "https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800&h=600&fit=crop",
@@ -878,74 +1263,21 @@ const seedData = async () => {
         furnished: true,
         petsAllowed: false,
         availableFrom: new Date("2024-03-20"),
-        latitude: 19.0176,
-        longitude: 72.8562,
+        latitude: 51.0447,
+        longitude: -114.0719,
         featured: true,
-        active: true,
-      },
-      {
-        ownerType: "User",
-        owner: customer._id,
-        title: "Modern Apartment in Delhi",
-        description:
-          "Spacious 3-bedroom apartment in South Delhi. Well-maintained building with modern amenities, close to metro, shopping malls, and restaurants. Perfect for families or professionals working in the capital.",
-        price: 1200,
-        currency: "USD",
-        city: "Delhi",
-        country: "India",
-        photos: [
-          {
-            url: "https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?w=800&h=600&fit=crop",
-            isThumbnail: true,
-            category: "exterior",
-          },
-          {
-            url: "https://images.unsplash.com/photo-1600607687644-c7171b42498b?w=800&h=600&fit=crop",
-            isThumbnail: false,
-            category: "living-room",
-          },
-          {
-            url: "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?w=800&h=600&fit=crop",
-            isThumbnail: false,
-            category: "bedroom",
-          },
-          {
-            url: "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?w=800&h=600&fit=crop",
-            isThumbnail: false,
-            category: "kitchen",
-          },
-        ],
-        bedrooms: 3,
-        bathrooms: 2,
-        area: 1800,
-        areaUnit: "sqft",
-        propertyType: "apartment",
-        amenities: [
-          "WiFi",
-          "Air Conditioning",
-          "Parking",
-          "Security",
-          "Elevator",
-          "Gym",
-        ],
-        furnished: true,
-        petsAllowed: false,
-        availableFrom: new Date("2024-03-01"),
-        latitude: 28.6139,
-        longitude: 77.209,
-        featured: false,
         active: true,
       },
       {
         ownerType: "Agency",
         owner: agencies[1]._id,
-        title: "Luxury Villa in Abu Dhabi",
+        title: "Luxury House in Perth",
         description:
-          "Stunning 5-bedroom villa with private pool and beach access. Ultra-modern design with marble finishes, smart home technology, and premium amenities. Located in a gated community with 24/7 security.",
-        price: 6000,
-        currency: "AED",
-        city: "Abu Dhabi",
-        country: "UAE",
+          "Stunning 5-bedroom house with private pool and garden. Ultra-modern design with premium finishes, smart home technology, and premium amenities. Located in a gated community with 24/7 security.",
+        price: 3200,
+        currency: "A$",
+        city: "Perth",
+        country: "Australia",
         photos: [
           {
             url: "https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800&h=600&fit=crop",
@@ -974,25 +1306,24 @@ const seedData = async () => {
           },
         ],
         bedrooms: 5,
-        bathrooms: 5,
-        area: 5000,
+        bathrooms: 4,
+        area: 4000,
         areaUnit: "sqft",
-        propertyType: "villa",
+        propertyType: "house",
         amenities: [
           "Pool",
-          "Beach Access",
+          "Garden",
           "Parking",
           "Security",
           "Gym",
-          "Garden",
           "Smart Home",
           "WiFi",
         ],
         furnished: true,
         petsAllowed: false,
         availableFrom: new Date("2024-04-01"),
-        latitude: 24.4539,
-        longitude: 54.3773,
+        latitude: -31.9505,
+        longitude: 115.8605,
         featured: true,
         active: true,
       },
@@ -1003,7 +1334,7 @@ const seedData = async () => {
         description:
           "Charming 2-bedroom apartment in the heart of Manchester. Victorian building with modern interior, fully equipped kitchen, and excellent transport links. Perfect for professionals or small families.",
         price: 1400,
-        currency: "GBP",
+        currency: "£",
         city: "Manchester",
         country: "UK",
         photos: [
@@ -1039,12 +1370,12 @@ const seedData = async () => {
       },
       {
         ownerType: "Agency",
-        owner: agencies[2]._id,
+        owner: agencies[3]._id,
         title: "Luxury Condo in Los Angeles",
         description:
           "Stunning 3-bedroom condo in Beverly Hills with city views. Modern design with premium finishes, private balcony, and access to building amenities. Located in prime location with easy access to shopping and entertainment.",
         price: 4500,
-        currency: "USD",
+        currency: "$",
         city: "Los Angeles",
         country: "USA",
         photos: [
@@ -1093,12 +1424,12 @@ const seedData = async () => {
       },
       {
         ownerType: "Agency",
-        owner: agencies[5]._id,
+        owner: agencies[0]._id,
         title: "Spacious Apartment in Chicago",
         description:
           "Modern 2-bedroom apartment in downtown Chicago with lake views. High-rise building with excellent amenities including gym, pool, and concierge. Walking distance to Millennium Park, shopping, and restaurants.",
         price: 2200,
-        currency: "USD",
+        currency: "$",
         city: "Chicago",
         country: "USA",
         photos: [
@@ -1152,7 +1483,7 @@ const seedData = async () => {
         description:
           "Charming 3-bedroom house in Mission District. Victorian architecture with modern updates, private backyard, and parking. Close to public transport, cafes, and tech companies. Perfect for families or professionals.",
         price: 3200,
-        currency: "USD",
+        currency: "$",
         city: "San Francisco",
         country: "USA",
         photos: [
@@ -1200,12 +1531,12 @@ const seedData = async () => {
       },
       {
         ownerType: "Agency",
-        owner: agencies[6]._id,
+        owner: agencies[11]._id,
         title: "Modern Apartment in Birmingham",
         description:
           "Contemporary 2-bedroom apartment in Birmingham city center. Newly renovated with modern finishes, excellent transport links, and close to shopping and entertainment. Ideal for professionals working in the city.",
         price: 1100,
-        currency: "GBP",
+        currency: "£",
         city: "Birmingham",
         country: "UK",
         photos: [
@@ -1246,7 +1577,7 @@ const seedData = async () => {
         description:
           "Stunning 4-bedroom penthouse with panoramic city views. Modern design with premium finishes, private terrace, and access to building amenities. Located in the heart of Edinburgh's historic center.",
         price: 2800,
-        currency: "GBP",
+        currency: "£",
         city: "Edinburgh",
         country: "UK",
         photos: [
@@ -1300,14 +1631,14 @@ const seedData = async () => {
       },
       {
         ownerType: "Agency",
-        owner: agencies[7]._id,
-        title: "Beachfront Apartment in Sharjah",
+        owner: agencies[10]._id,
+        title: "Beachfront Apartment in Vancouver",
         description:
-          "Beautiful 2-bedroom apartment with direct beach access in Sharjah. Modern amenities, stunning sea views, and close to shopping malls and restaurants. Perfect for families or professionals seeking a beach lifestyle.",
+          "Beautiful 2-bedroom apartment with ocean views in Vancouver. Modern amenities, stunning sea views, and close to shopping malls and restaurants. Perfect for families or professionals seeking a coastal lifestyle.",
         price: 1800,
-        currency: "AED",
-        city: "Sharjah",
-        country: "UAE",
+        currency: "C$",
+        city: "Vancouver",
+        country: "Canada",
         photos: [
           {
             url: "https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800&h=600&fit=crop",
@@ -1336,8 +1667,7 @@ const seedData = async () => {
         areaUnit: "sqft",
         propertyType: "apartment",
         amenities: [
-          "Beach Access",
-          "Pool",
+          "Ocean Views",
           "Gym",
           "Parking",
           "WiFi",
@@ -1347,21 +1677,21 @@ const seedData = async () => {
         furnished: true,
         petsAllowed: false,
         availableFrom: new Date("2024-03-25"),
-        latitude: 25.3573,
-        longitude: 55.4033,
+        latitude: 49.2827,
+        longitude: -123.1207,
         featured: false,
         active: true,
       },
       {
         ownerType: "User",
         owner: customer._id,
-        title: "Modern Studio in Bangalore",
+        title: "Modern Studio in Ottawa",
         description:
-          "Compact studio apartment in Koramangala, Bangalore. Well-designed space with modern amenities, excellent connectivity, and close to IT parks, restaurants, and shopping. Perfect for young professionals.",
-        price: 600,
-        currency: "USD",
-        city: "Bangalore",
-        country: "India",
+          "Compact studio apartment in downtown Ottawa. Well-designed space with modern amenities, excellent connectivity, and close to government offices, restaurants, and shopping. Perfect for young professionals.",
+        price: 1200,
+        currency: "C$",
+        city: "Ottawa",
+        country: "Canada",
         photos: [
           {
             url: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop",
@@ -1381,7 +1711,7 @@ const seedData = async () => {
         ],
         bedrooms: 0,
         bathrooms: 1,
-        area: 400,
+        area: 450,
         areaUnit: "sqft",
         propertyType: "studio",
         amenities: [
@@ -1394,21 +1724,21 @@ const seedData = async () => {
         furnished: true,
         petsAllowed: false,
         availableFrom: new Date("2024-03-01"),
-        latitude: 12.9352,
-        longitude: 77.6245,
+        latitude: 45.4215,
+        longitude: -75.6972,
         featured: false,
         active: true,
       },
       {
         ownerType: "Agency",
-        owner: agencies[8]._id,
-        title: "Luxury Apartment in Hyderabad",
+        owner: agencies[9]._id,
+        title: "Luxury Apartment in Adelaide",
         description:
-          "Premium 3-bedroom apartment in Hitech City, Hyderabad. Modern design with premium finishes, private balcony, and access to world-class amenities. Located in the heart of the IT district with excellent connectivity.",
-        price: 1400,
-        currency: "USD",
-        city: "Hyderabad",
-        country: "India",
+          "Premium 3-bedroom apartment in Adelaide CBD. Modern design with premium finishes, private balcony, and access to world-class amenities. Located in the heart of the city with excellent connectivity.",
+        price: 1800,
+        currency: "A$",
+        city: "Adelaide",
+        country: "Australia",
         photos: [
           {
             url: "https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?w=800&h=600&fit=crop",
@@ -1454,8 +1784,8 @@ const seedData = async () => {
         furnished: true,
         petsAllowed: false,
         availableFrom: new Date("2024-04-01"),
-        latitude: 17.4486,
-        longitude: 78.3908,
+        latitude: -34.9285,
+        longitude: 138.6007,
         featured: true,
         active: true,
       },
@@ -1466,7 +1796,7 @@ const seedData = async () => {
         description:
           "Spacious 3-bedroom townhouse in Miami Beach. Modern design with private patio, parking, and close to beaches, restaurants, and nightlife. Perfect for families or professionals seeking the Miami lifestyle.",
         price: 2800,
-        currency: "USD",
+        currency: "$",
         city: "Miami",
         country: "USA",
         photos: [
@@ -1515,13 +1845,13 @@ const seedData = async () => {
       {
         ownerType: "Agency",
         owner: agencies[2]._id,
-        title: "Luxury Apartment in Dubai Marina",
+        title: "Luxury Apartment in Seattle",
         description:
-          "Stunning 2-bedroom apartment in Dubai Marina with waterfront views. Modern design with premium finishes, private balcony, and access to building amenities including pool, gym, and concierge.",
-        price: 3500,
-        currency: "AED",
-        city: "Dubai",
-        country: "UAE",
+          "Stunning 2-bedroom apartment in Seattle with waterfront views. Modern design with premium finishes, private balcony, and access to building amenities including pool, gym, and concierge.",
+        price: 2800,
+        currency: "$",
+        city: "Seattle",
+        country: "USA",
         photos: [
           {
             url: "https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800&h=600&fit=crop",
@@ -1561,8 +1891,8 @@ const seedData = async () => {
         furnished: true,
         petsAllowed: false,
         availableFrom: new Date("2024-03-30"),
-        latitude: 25.0772,
-        longitude: 55.1398,
+        latitude: 47.6062,
+        longitude: -122.3321,
         featured: true,
         active: true,
       },

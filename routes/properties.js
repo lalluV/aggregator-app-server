@@ -1,6 +1,7 @@
 import express from "express";
 import Property from "../models/Property.js";
 import Interest from "../models/Interest.js";
+import PropertyRequirement from "../models/PropertyRequirement.js";
 import { authenticate, isCustomerOrAgency } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -435,6 +436,48 @@ router.delete("/:id", authenticate, isCustomerOrAgency, async (req, res) => {
 
     res.json({
       message: "Property deleted successfully",
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// POST /api/properties/:id/requirements - Submit requirements for sold out property
+router.post("/:id/requirements", async (req, res) => {
+  try {
+    const property = await Property.findById(req.params.id);
+
+    if (!property) {
+      return res.status(404).json({ message: "Property not found" });
+    }
+
+    if (!property.soldOut) {
+      return res.status(400).json({
+        message:
+          "This property is not sold out. Please use the interest form instead.",
+      });
+    }
+
+    const { name, email, phone, message, requirements } = req.body;
+
+    if (!name || !email || !phone || !message) {
+      return res.status(400).json({
+        message: "Name, email, phone, and message are required",
+      });
+    }
+
+    const propertyRequirement = await PropertyRequirement.create({
+      property: property._id,
+      name,
+      email,
+      phone,
+      message,
+      requirements: requirements || "",
+    });
+
+    res.status(201).json({
+      message: "Requirements submitted successfully",
+      requirement: propertyRequirement,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

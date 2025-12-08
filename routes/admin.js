@@ -5,6 +5,7 @@ import Agency from "../models/Agency.js";
 import Property from "../models/Property.js";
 import Interest from "../models/Interest.js";
 import AgencyInquiry from "../models/AgencyInquiry.js";
+import PropertyRequirement from "../models/PropertyRequirement.js";
 import Country from "../models/Country.js";
 import { authenticate, isAdmin } from "../middleware/auth.js";
 
@@ -197,6 +198,36 @@ router.patch(
   }
 );
 
+// PATCH /api/admin/properties/:id/soldout - Toggle sold out status
+router.patch(
+  "/properties/:id/soldout",
+  authenticate,
+  isAdmin,
+  async (req, res) => {
+    try {
+      const { soldOut } = req.body;
+      const property = await Property.findByIdAndUpdate(
+        req.params.id,
+        { soldOut: soldOut === true || soldOut === "true" },
+        { new: true }
+      );
+
+      if (!property) {
+        return res.status(404).json({ message: "Property not found" });
+      }
+
+      res.json({
+        message: property.soldOut
+          ? "Property marked as sold out"
+          : "Property marked as available",
+        property,
+      });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  }
+);
+
 // DELETE /api/admin/properties/:id - Delete property
 router.delete("/properties/:id", authenticate, isAdmin, async (req, res) => {
   try {
@@ -299,5 +330,45 @@ router.delete("/countries/:id", authenticate, isAdmin, async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+
+// GET /api/admin/requirements - List all property requirements
+router.get("/requirements", authenticate, isAdmin, async (req, res) => {
+  try {
+    const requirements = await PropertyRequirement.find()
+      .populate("property", "title city country price")
+      .sort({ createdAt: -1 });
+    res.json({ count: requirements.length, requirements });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// PATCH /api/admin/requirements/:id/status - Update requirement status
+router.patch(
+  "/requirements/:id/status",
+  authenticate,
+  isAdmin,
+  async (req, res) => {
+    try {
+      const { status } = req.body;
+      const requirement = await PropertyRequirement.findByIdAndUpdate(
+        req.params.id,
+        { status },
+        { new: true }
+      ).populate("property", "title city country price");
+
+      if (!requirement) {
+        return res.status(404).json({ message: "Requirement not found" });
+      }
+
+      res.json({
+        message: "Requirement status updated successfully",
+        requirement,
+      });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  }
+);
 
 export default router;
