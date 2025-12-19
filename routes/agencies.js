@@ -42,6 +42,48 @@ router.get("/", async (req, res) => {
   }
 });
 
+// GET /api/agencies/available-categories - Get available categories for a country
+// Must be before /:id route to avoid route conflict
+router.get("/available-categories", async (req, res) => {
+  try {
+    const { country } = req.query;
+
+    if (!country) {
+      return res.status(400).json({
+        message: "Country parameter is required",
+      });
+    }
+
+    // Find all approved agencies in the specified country
+    const agencies = await Agency.find({
+      isApproved: true,
+      country: new RegExp(`^${country}$`, "i"),
+    }).select("category");
+
+    // Extract all unique categories from agencies
+    const categorySet = new Set();
+    agencies.forEach((agency) => {
+      if (agency.category && Array.isArray(agency.category)) {
+        agency.category.forEach((cat) => {
+          if (cat) {
+            categorySet.add(cat);
+          }
+        });
+      }
+    });
+
+    const availableCategories = Array.from(categorySet).sort();
+
+    res.json({
+      country,
+      categories: availableCategories,
+      count: availableCategories.length,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // GET /api/agencies/inquiries - Get own inquiries (Agency only)
 // Must be before /:id route to avoid route conflict
 router.get("/inquiries", authenticate, isAgency, async (req, res) => {

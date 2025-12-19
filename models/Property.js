@@ -115,6 +115,10 @@ const propertySchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  featuredUntil: {
+    type: Date,
+    default: null,
+  },
   active: {
     type: Boolean,
     default: true,
@@ -145,6 +149,23 @@ propertySchema.pre(/^find/, function (next) {
   });
   // Country is now a string, no need to populate
   next();
+});
+
+// Post-find hook to automatically clean up expired featured properties
+propertySchema.post(/^find/, async function (docs) {
+  if (!docs) return;
+  
+  const now = new Date();
+  const docsArray = Array.isArray(docs) ? docs : [docs];
+  
+  for (const doc of docsArray) {
+    if (doc && doc.featured && doc.featuredUntil && new Date(doc.featuredUntil) < now) {
+      // Property has expired, update it
+      doc.featured = false;
+      doc.featuredUntil = null;
+      await doc.save({ validateBeforeSave: false });
+    }
+  }
 });
 
 export default mongoose.model("Property", propertySchema);

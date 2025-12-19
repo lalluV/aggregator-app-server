@@ -4,6 +4,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import morgan from "morgan";
 import { connectDB } from "./config/db.js";
+import { cleanupExpiredFeatured } from "./utils/featuredCleanup.js";
 
 // Import routes
 import userAuthRoutes from "./routes/userAuth.js";
@@ -14,6 +15,7 @@ import adminRoutes from "./routes/admin.js";
 import uploadRoutes from "./routes/upload.js";
 import favoriteRoutes from "./routes/favorites.js";
 import countryRoutes from "./routes/countries.js";
+import partnerRoutes from "./routes/partners.js";
 
 // Load env variables
 dotenv.config();
@@ -54,6 +56,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/favorites", favoriteRoutes);
 app.use("/api/countries", countryRoutes);
+app.use("/api/partners", partnerRoutes);
 
 // Error handler
 app.use((err, req, res, next) => {
@@ -65,4 +68,12 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 3005;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
+
+  // Run cleanup on startup
+  cleanupExpiredFeatured().catch(console.error);
+
+  // Run cleanup every 12 hours
+  setInterval(() => {
+    cleanupExpiredFeatured().catch(console.error);
+  }, 12 * 60 * 60 * 1000); // 12 hours in milliseconds
 });

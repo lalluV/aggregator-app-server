@@ -7,7 +7,9 @@ import Interest from "../models/Interest.js";
 import AgencyInquiry from "../models/AgencyInquiry.js";
 import PropertyRequirement from "../models/PropertyRequirement.js";
 import Country from "../models/Country.js";
+import PartnerSubmission from "../models/PartnerSubmission.js";
 import { authenticate, isAdmin } from "../middleware/auth.js";
+import { cleanupExpiredFeatured } from "../utils/featuredCleanup.js";
 
 const router = express.Router();
 
@@ -175,10 +177,27 @@ router.patch(
   isAdmin,
   async (req, res) => {
     try {
-      const { featured } = req.body;
+      const { featured, featuredUntil } = req.body;
+      const updateData = {
+        featured: featured === true || featured === "true",
+      };
+      
+      // If featuring, set expiry date (default 30 days if not provided)
+      if (updateData.featured && featuredUntil) {
+        updateData.featuredUntil = new Date(featuredUntil);
+      } else if (updateData.featured && !featuredUntil) {
+        // Default to 30 days from now
+        const expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + 30);
+        updateData.featuredUntil = expiryDate;
+      } else if (!updateData.featured) {
+        // If unfeaturing, clear the expiry date
+        updateData.featuredUntil = null;
+      }
+      
       const property = await Property.findByIdAndUpdate(
         req.params.id,
-        { featured: featured === true || featured === "true" },
+        updateData,
         { new: true }
       );
 
@@ -227,6 +246,41 @@ router.patch(
     }
   }
 );
+
+// GET /api/admin/properties/:id - Get property (Admin)
+router.get("/properties/:id", authenticate, isAdmin, async (req, res) => {
+  try {
+    const property = await Property.findById(req.params.id);
+    if (!property) {
+      return res.status(404).json({ message: "Property not found" });
+    }
+    res.json({ property });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// PATCH /api/admin/properties/:id - Update property (Admin)
+router.patch("/properties/:id", authenticate, isAdmin, async (req, res) => {
+  try {
+    const property = await Property.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
+
+    if (!property) {
+      return res.status(404).json({ message: "Property not found" });
+    }
+
+    res.json({
+      message: "Property updated successfully",
+      property,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
 
 // DELETE /api/admin/properties/:id - Delete property
 router.delete("/properties/:id", authenticate, isAdmin, async (req, res) => {
@@ -331,6 +385,180 @@ router.delete("/countries/:id", authenticate, isAdmin, async (req, res) => {
   }
 });
 
+// POST /api/admin/properties - Create property (Admin)
+router.post("/properties", authenticate, isAdmin, async (req, res) => {
+  try {
+    const propertyData = req.body;
+    
+    // Set owner to admin user if not provided
+    if (!propertyData.owner) {
+      propertyData.owner = req.user._id;
+      propertyData.ownerType = "User";
+    }
+    
+    const property = await Property.create(propertyData);
+    res.status(201).json({
+      message: "Property created successfully",
+      property,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// POST /api/admin/agencies - Create agency (Admin)
+router.post("/agencies", authenticate, isAdmin, async (req, res) => {
+  try {
+    const { name, email, password, ...agencyData } = req.body;
+    
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        message: "Name, email, and password are required",
+      });
+    }
+    
+    // Hash password
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(password, saltRounds);
+    
+    const agency = await Agency.create({
+      name,
+      email,
+      passwordHash,
+      isApproved: true, // Auto-approve admin-created agencies
+      ...agencyData,
+    });
+    
+    res.status(201).json({
+      message: "Agency created successfully",
+      agency: await Agency.findById(agency._id).select("-passwordHash"),
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ message: "Email already exists" });
+    }
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// GET /api/admin/users/:id - Get user profile
+router.get("/users/:id", authenticate, isAdmin, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select("-passwordHash");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    res.json({ user });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// PATCH /api/admin/users/:id - Update user profile
+router.patch("/users/:id", authenticate, isAdmin, async (req, res) => {
+  try {
+    const { password, ...updateData } = req.body;
+    
+    if (password) {
+      const saltRounds = 10;
+      updateData.passwordHash = await bcrypt.hash(password, saltRounds);
+    }
+    
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true }
+    ).select("-passwordHash");
+    
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    
+    res.json({
+      message: "User updated successfully",
+      user,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// GET /api/admin/agencies/:id - Get agency profile
+router.get("/agencies/:id", authenticate, isAdmin, async (req, res) => {
+  try {
+    const agency = await Agency.findById(req.params.id).select("-passwordHash");
+    if (!agency) {
+      return res.status(404).json({ message: "Agency not found" });
+    }
+    res.json({ agency });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// PATCH /api/admin/agencies/:id - Update agency profile
+router.patch("/agencies/:id", authenticate, isAdmin, async (req, res) => {
+  try {
+    const { password, ...updateData } = req.body;
+    
+    if (password) {
+      const saltRounds = 10;
+      updateData.passwordHash = await bcrypt.hash(password, saltRounds);
+    }
+    
+    const agency = await Agency.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true }
+    ).select("-passwordHash");
+    
+    if (!agency) {
+      return res.status(404).json({ message: "Agency not found" });
+    }
+    
+    res.json({
+      message: "Agency updated successfully",
+      agency,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// GET /api/admin/partners - Get partner submissions
+router.get("/partners", authenticate, isAdmin, async (req, res) => {
+  try {
+    const submissions = await PartnerSubmission.find()
+      .sort({ createdAt: -1 });
+    res.json({ count: submissions.length, submissions });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// PATCH /api/admin/partners/:id/status - Update partner submission status
+router.patch("/partners/:id/status", authenticate, isAdmin, async (req, res) => {
+  try {
+    const { status } = req.body;
+    const submission = await PartnerSubmission.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    );
+    
+    if (!submission) {
+      return res.status(404).json({ message: "Submission not found" });
+    }
+    
+    res.json({
+      message: "Status updated successfully",
+      submission,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // GET /api/admin/requirements - List all property requirements
 router.get("/requirements", authenticate, isAdmin, async (req, res) => {
   try {
@@ -364,6 +592,24 @@ router.patch(
       res.json({
         message: "Requirement status updated successfully",
         requirement,
+      });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  }
+);
+
+// POST /api/admin/cleanup-expired-featured - Manually trigger cleanup of expired featured properties
+router.post(
+  "/cleanup-expired-featured",
+  authenticate,
+  isAdmin,
+  async (req, res) => {
+    try {
+      const result = await cleanupExpiredFeatured();
+      res.json({
+        message: `Cleanup completed. ${result.updated} properties updated.`,
+        ...result,
       });
     } catch (error) {
       res.status(500).json({ message: error.message });

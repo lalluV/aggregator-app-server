@@ -61,6 +61,18 @@ router.post("/", authenticate, isCustomerOrAgency, async (req, res) => {
           .filter(Boolean) // Remove any null values
       : [];
 
+    // Validate that if photos exist, at least one must be a thumbnail
+    if (normalizedPhotos.length > 0) {
+      const hasThumbnail = normalizedPhotos.some(
+        (photo) => photo.isThumbnail === true
+      );
+      if (!hasThumbnail) {
+        return res.status(400).json({
+          message: "At least one photo must be set as thumbnail",
+        });
+      }
+    }
+
     const propertyData = {
       title,
       description,
@@ -165,7 +177,43 @@ router.get("/", async (req, res) => {
       query.petsAllowed = petsAllowed === "true" || petsAllowed === true;
     }
     if (featured !== undefined) {
-      query.featured = featured === "true" || featured === true;
+      if (featured === "true" || featured === true) {
+        // Only show featured properties that haven't expired
+        query.featured = true;
+        query.$or = [
+          { featuredUntil: null },
+          { featuredUntil: { $gte: new Date() } },
+        ];
+      }
+    }
+
+    // Always exclude expired featured properties from results
+    // Add condition to filter out expired featured properties
+    const now = new Date();
+    if (query.featured === true) {
+      // If filtering for featured, ensure they're not expired
+      if (!query.$or) {
+        query.$or = [{ featuredUntil: null }, { featuredUntil: { $gte: now } }];
+      }
+    } else {
+      // For all properties, exclude expired featured ones
+      const existingOr = query.$or || [];
+      query.$and = [
+        ...(query.$and || []),
+        {
+          $or: [
+            { featured: false },
+            {
+              featured: true,
+              $or: [{ featuredUntil: null }, { featuredUntil: { $gte: now } }],
+            },
+          ],
+        },
+      ];
+      if (existingOr.length > 0) {
+        query.$and.push({ $or: existingOr });
+      }
+      delete query.$or;
     }
 
     // Sorting
@@ -349,12 +397,25 @@ router.put("/:id", authenticate, isCustomerOrAgency, async (req, res) => {
     }
 
     // Check ownership
+    // Handle populated owner (from pre-find hook) or unpopulated ObjectId
+    const propertyOwnerId = (property.owner?._id || property.owner).toString();
+
     const ownerId = req.userType === "AGENCY" ? req.agency._id : req.user._id;
+    const expectedOwnerType = req.userType === "AGENCY" ? "Agency" : "User";
+
     if (
-      property.owner.toString() !== ownerId.toString() ||
-      property.ownerType !== (req.userType === "AGENCY" ? "Agency" : "User")
+      propertyOwnerId !== ownerId.toString() ||
+      property.ownerType !== expectedOwnerType
     ) {
-      return res.status(403).json({ message: "Not authorized" });
+      return res.status(403).json({
+        message: "Not authorized",
+        debug: {
+          propertyOwnerId,
+          propertyOwnerType: property.ownerType,
+          authenticatedOwnerId: ownerId?.toString(),
+          authenticatedUserType: req.userType,
+        },
+      });
     }
 
     // Update allowed fields
@@ -397,6 +458,44 @@ router.put("/:id", authenticate, isCustomerOrAgency, async (req, res) => {
             req.body[field] === true || req.body[field] === "true";
         } else if (field === "availableFrom") {
           property[field] = new Date(req.body[field]);
+        } else if (field === "photos") {
+          // Normalize and validate photos
+          const photos = req.body[field];
+          const normalizedPhotos = Array.isArray(photos)
+            ? photos
+                .map((photo) => {
+                  if (typeof photo === "string") {
+                    return {
+                      url: photo,
+                      isThumbnail: false,
+                      category: "",
+                    };
+                  }
+                  if (photo && typeof photo === "object") {
+                    return {
+                      url: photo.url || "",
+                      isThumbnail: photo.isThumbnail || false,
+                      category: photo.category || "",
+                    };
+                  }
+                  return null;
+                })
+                .filter(Boolean)
+            : [];
+
+          // Validate that if photos exist, at least one must be a thumbnail
+          if (normalizedPhotos.length > 0) {
+            const hasThumbnail = normalizedPhotos.some(
+              (photo) => photo.isThumbnail === true
+            );
+            if (!hasThumbnail) {
+              return res.status(400).json({
+                message: "At least one photo must be set as thumbnail",
+              });
+            }
+          }
+
+          property[field] = normalizedPhotos;
         } else {
           property[field] = req.body[field];
         }
@@ -424,10 +523,14 @@ router.delete("/:id", authenticate, isCustomerOrAgency, async (req, res) => {
     }
 
     // Check ownership
+    // Handle populated owner (from pre-find hook) or unpopulated ObjectId
+    const propertyOwnerId = (property.owner?._id || property.owner).toString();
     const ownerId = req.userType === "AGENCY" ? req.agency._id : req.user._id;
+    const expectedOwnerType = req.userType === "AGENCY" ? "Agency" : "User";
+
     if (
-      property.owner.toString() !== ownerId.toString() ||
-      property.ownerType !== (req.userType === "AGENCY" ? "Agency" : "User")
+      propertyOwnerId !== ownerId.toString() ||
+      property.ownerType !== expectedOwnerType
     ) {
       return res.status(403).json({ message: "Not authorized" });
     }
@@ -483,5 +586,79 @@ router.post("/:id/requirements", async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+
+// POST /api/properties/:id/subscribe-featured - Subscribe to make property featured
+router.post(
+  "/:id/subscribe-featured",
+  authenticate,
+  isCustomerOrAgency,
+  async (req, res) => {
+    try {
+      const property = await Property.findById(req.params.id);
+
+      if (!property) {
+        return res.status(404).json({ message: "Property not found" });
+      }
+
+      // Check ownership
+      const propertyOwnerId = (property.owner?._id || property.owner).toString();
+      const ownerId =
+        req.userType === "AGENCY" ? req.agency._id : req.user._id;
+      const expectedOwnerType = req.userType === "AGENCY" ? "Agency" : "User";
+
+      if (
+        propertyOwnerId !== ownerId.toString() ||
+        property.ownerType !== expectedOwnerType
+      ) {
+        return res.status(403).json({
+          message: "Not authorized. You can only feature your own properties.",
+        });
+      }
+
+      const { durationDays = 30, paymentIntentId } = req.body;
+
+      // Validate duration (1-365 days)
+      const days = parseInt(durationDays);
+      if (isNaN(days) || days < 1 || days > 365) {
+        return res.status(400).json({
+          message: "Duration must be between 1 and 365 days",
+        });
+      }
+
+      // Calculate expiry date
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + days);
+
+      // If property is already featured and hasn't expired, extend the date
+      if (property.featured && property.featuredUntil) {
+        const currentExpiry = new Date(property.featuredUntil);
+        const now = new Date();
+        if (currentExpiry > now) {
+          // Extend from current expiry date
+          expiryDate.setTime(currentExpiry.getTime() + days * 24 * 60 * 60 * 1000);
+        }
+      }
+
+      // Update property to featured
+      property.featured = true;
+      property.featuredUntil = expiryDate;
+
+      await property.save();
+
+      res.json({
+        message: "Property featured successfully",
+        property: {
+          _id: property._id,
+          featured: property.featured,
+          featuredUntil: property.featuredUntil,
+        },
+        expiresAt: expiryDate,
+        durationDays: days,
+      });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  }
+);
 
 export default router;
