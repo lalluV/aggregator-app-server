@@ -33,6 +33,10 @@ app.use(
     origin: [
       "http://localhost:3000", // Web frontend
       "http://localhost:3001", // Admin panel
+      "https://safeaven.com",
+      "https://admin.safeaven.com",
+      "https://www.safeaven.com",
+      "https://www.admin.safeaven.com",
       process.env.CORS_ORIGIN,
     ].filter(Boolean),
     credentials: true,
