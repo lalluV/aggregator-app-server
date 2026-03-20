@@ -8,6 +8,8 @@ import AgencyInquiry from "../models/AgencyInquiry.js";
 import PropertyRequirement from "../models/PropertyRequirement.js";
 import Country from "../models/Country.js";
 import PartnerSubmission from "../models/PartnerSubmission.js";
+import UniversityApplication from "../models/UniversityApplication.js";
+import LeadAssignment from "../models/LeadAssignment.js";
 import { authenticate, isAdmin } from "../middleware/auth.js";
 import { cleanupExpiredFeatured } from "../utils/featuredCleanup.js";
 
@@ -524,6 +526,124 @@ router.patch("/agencies/:id", authenticate, isAdmin, async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+
+// GET /api/admin/university-applications - Get university application leads
+router.get("/university-applications", authenticate, isAdmin, async (req, res) => {
+  try {
+    const leads = await UniversityApplication.find()
+      .sort({ createdAt: -1 })
+      .select("-__v");
+    res.json({ count: leads.length, leads });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// PATCH /api/admin/university-applications/:id/status - Update lead status
+router.patch(
+  "/university-applications/:id/status",
+  authenticate,
+  isAdmin,
+  async (req, res) => {
+    try {
+      const { status } = req.body;
+      const validStatuses = [
+        "pending",
+        "contacted",
+        "processing",
+        "submitted",
+        "rejected",
+      ];
+      if (!validStatuses.includes(status)) {
+        return res
+          .status(400)
+          .json({ message: "Invalid status. Must be one of: " + validStatuses.join(", ") });
+      }
+
+      const lead = await UniversityApplication.findByIdAndUpdate(
+        req.params.id,
+        { status },
+        { new: true }
+      ).select("-__v");
+
+      if (!lead) {
+        return res.status(404).json({ message: "Lead not found" });
+      }
+
+      res.json({
+        message: "Status updated successfully",
+        lead,
+      });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  }
+);
+
+// POST /api/admin/university-applications/bulk-assign - Bulk assign leads to agency
+router.post(
+  "/university-applications/bulk-assign",
+  authenticate,
+  isAdmin,
+  async (req, res) => {
+    try {
+      const { leadIds, agencyId } = req.body;
+
+      if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
+        return res
+          .status(400)
+          .json({ message: "Please select at least one lead" });
+      }
+
+      if (!agencyId) {
+        return res.status(400).json({ message: "Please select an agency" });
+      }
+
+      const agency = await Agency.findById(agencyId);
+      if (!agency) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
+
+      const assignments = [];
+      const skipped = [];
+
+      for (const leadId of leadIds) {
+        const lead = await UniversityApplication.findById(leadId);
+        if (!lead) {
+          skipped.push({ leadId, reason: "Lead not found" });
+          continue;
+        }
+
+        const existing = await LeadAssignment.findOne({
+          agencyId,
+          universityApplicationId: leadId,
+        });
+        if (existing) {
+          skipped.push({ leadId, reason: "Already assigned to this agency" });
+          continue;
+        }
+
+        const assignment = new LeadAssignment({
+          agencyId,
+          universityApplicationId: leadId,
+          assignedBy: req.user.id,
+        });
+        await assignment.save();
+        assignments.push(assignment);
+      }
+
+      res.json({
+        message: `Successfully assigned ${assignments.length} lead(s) to ${agency.name}`,
+        assigned: assignments.length,
+        skipped: skipped.length,
+        skippedDetails: skipped,
+      });
+    } catch (error) {
+      console.error("Error bulk assigning leads:", error);
+      res.status(500).json({ message: error.message });
+    }
+  }
+);
 
 // GET /api/admin/partners - Get partner submissions
 router.get("/partners", authenticate, isAdmin, async (req, res) => {

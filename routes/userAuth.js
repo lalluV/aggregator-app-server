@@ -88,6 +88,19 @@ router.post("/login", async (req, res) => {
   }
 });
 
+// GET /api/users/profile/:id - Get user profile (for chat, group members)
+router.get("/profile/:id", authenticate, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select("name email").lean();
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    res.json({ user: { ...user, _id: user._id } });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // GET /api/users/me
 router.get("/me", authenticate, async (req, res) => {
   try {
@@ -98,6 +111,36 @@ router.get("/me", authenticate, async (req, res) => {
         email: req.user.email,
         phone: req.user.phone,
         role: req.user.role,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// PATCH /api/users/profile - Update own profile (name, phone)
+router.patch("/profile", authenticate, async (req, res) => {
+  try {
+    const { name, phone } = req.body;
+    const updateData = {};
+    if (name !== undefined && String(name).trim()) updateData.name = String(name).trim();
+    if (phone !== undefined) updateData.phone = String(phone).trim();
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ message: "No valid fields to update" });
+    }
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+    res.json({
+      message: "Profile updated successfully",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
       },
     });
   } catch (error) {

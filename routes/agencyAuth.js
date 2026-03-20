@@ -1,6 +1,8 @@
 import express from "express";
 import bcrypt from "bcrypt";
 import Agency from "../models/Agency.js";
+import LeadAssignment from "../models/LeadAssignment.js";
+import UniversityApplication from "../models/UniversityApplication.js";
 import { authenticate, isAgency } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -117,6 +119,25 @@ router.post("/login", async (req, res) => {
         isApproved: agency.isApproved,
       },
     });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// GET /api/agencies/assigned-leads - Get leads assigned to this agency
+router.get("/assigned-leads", authenticate, isAgency, async (req, res) => {
+  try {
+    const assignments = await LeadAssignment.find({
+      agencyId: req.agency._id,
+    })
+      .populate("universityApplicationId")
+      .sort({ assignedAt: -1 });
+
+    const leads = assignments
+      .map((a) => a.universityApplicationId)
+      .filter(Boolean);
+
+    res.json({ count: leads.length, leads });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

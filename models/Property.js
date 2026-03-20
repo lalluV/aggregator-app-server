@@ -37,6 +37,25 @@ const propertySchema = new mongoose.Schema({
     required: true,
     trim: true,
   },
+  address: {
+    type: String,
+    trim: true,
+    default: "",
+  },
+  nearbyPlaces: {
+    type: String,
+    trim: true,
+    default: "",
+  },
+  nearbyUniversities: {
+    type: [
+      {
+        name: { type: String, required: true, trim: true },
+        miles: { type: Number, required: true, min: 0 },
+      },
+    ],
+    default: [],
+  },
   photos: {
     type: [
       {
@@ -83,6 +102,7 @@ const propertySchema = new mongoose.Schema({
       "condo",
       "townhouse",
       "villa",
+      "project",
       "other",
     ],
   },
@@ -126,6 +146,11 @@ const propertySchema = new mongoose.Schema({
   soldOut: {
     type: Boolean,
     default: false,
+  },
+  projectUrl: {
+    type: String,
+    trim: true,
+    default: "",
   },
   createdAt: {
     type: Date,

@@ -16,6 +16,9 @@ router.post("/", authenticate, isCustomerOrAgency, async (req, res) => {
       currency,
       city,
       country,
+      address,
+      nearbyPlaces,
+      nearbyUniversities,
       photos,
       bedrooms,
       bathrooms,
@@ -33,6 +36,13 @@ router.post("/", authenticate, isCustomerOrAgency, async (req, res) => {
     if (!title || !description || !price || !city || !country) {
       return res.status(400).json({
         message: "Required fields: title, description, price, city, country",
+      });
+    }
+
+    // Only admin can create "project" type (via /api/admin/properties)
+    if (propertyType === "project") {
+      return res.status(403).json({
+        message: "Only admin can create Project properties. Use the admin panel.",
       });
     }
 
@@ -80,6 +90,13 @@ router.post("/", authenticate, isCustomerOrAgency, async (req, res) => {
       currency: currency || "USD",
       city,
       country,
+      address: address || "",
+      nearbyPlaces: nearbyPlaces || "",
+      nearbyUniversities: Array.isArray(nearbyUniversities)
+        ? nearbyUniversities
+            .filter((u) => u && u.name && typeof u.miles === "number")
+            .map((u) => ({ name: String(u.name).trim(), miles: Number(u.miles) }))
+        : [],
       photos: normalizedPhotos,
       bedrooms: bedrooms ? parseInt(bedrooms) : undefined,
       bathrooms: bathrooms ? parseInt(bathrooms) : undefined,
@@ -130,6 +147,8 @@ router.get("/", async (req, res) => {
       furnished,
       petsAllowed,
       featured,
+      university,
+      maxMiles,
       sort,
       page = 1,
       limit = 20,
@@ -175,6 +194,17 @@ router.get("/", async (req, res) => {
     }
     if (petsAllowed !== undefined) {
       query.petsAllowed = petsAllowed === "true" || petsAllowed === true;
+    }
+    if (university && maxMiles !== undefined) {
+      const miles = parseFloat(maxMiles);
+      if (!isNaN(miles) && miles >= 0) {
+        query.nearbyUniversities = {
+          $elemMatch: {
+            name: new RegExp(String(university).trim(), "i"),
+            miles: { $lte: miles },
+          },
+        };
+      }
     }
     if (featured !== undefined) {
       if (featured === "true" || featured === true) {
@@ -426,6 +456,9 @@ router.put("/:id", authenticate, isCustomerOrAgency, async (req, res) => {
       "currency",
       "city",
       "country",
+      "address",
+      "nearbyPlaces",
+      "nearbyUniversities",
       "photos",
       "bedrooms",
       "bathrooms",
@@ -439,6 +472,7 @@ router.put("/:id", authenticate, isCustomerOrAgency, async (req, res) => {
       "latitude",
       "longitude",
       "active",
+      "projectUrl",
     ];
 
     allowedFields.forEach((field) => {
@@ -458,6 +492,15 @@ router.put("/:id", authenticate, isCustomerOrAgency, async (req, res) => {
             req.body[field] === true || req.body[field] === "true";
         } else if (field === "availableFrom") {
           property[field] = new Date(req.body[field]);
+        } else if (field === "address" || field === "nearbyPlaces" || field === "projectUrl") {
+          property[field] = req.body[field] != null ? String(req.body[field]).trim() : "";
+        } else if (field === "nearbyUniversities") {
+          const arr = req.body[field];
+          property[field] = Array.isArray(arr)
+            ? arr
+                .filter((u) => u && u.name && typeof u.miles === "number")
+                .map((u) => ({ name: String(u.name).trim(), miles: Number(u.miles) }))
+            : [];
         } else if (field === "photos") {
           // Normalize and validate photos
           const photos = req.body[field];
