@@ -34,17 +34,26 @@ connectDB();
 const app = express();
 const httpServer = createServer(app);
 
+const envCorsOrigins = (process.env.CORS_ORIGIN || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost:8081", // React Native Metro
+  "https://safeaven.com",
+  "https://www.safeaven.com",
+  "https://admin.safeaven.com",
+  "https://www.admin.safeaven.com",
+  ...envCorsOrigins,
+];
+
 // Initialize Socket.io
 const io = new Server(httpServer, {
   cors: {
-    origin: [
-      "http://localhost:3000",
-      "http://localhost:3001",
-      "http://localhost:8081", // React Native Metro
-      "https://safeaven.com",
-      "https://admin.safeaven.com",
-      process.env.CORS_ORIGIN,
-    ].filter(Boolean),
+    origin: allowedOrigins,
     credentials: true,
   },
 });
@@ -53,15 +62,7 @@ const io = new Server(httpServer, {
 app.use(morgan("dev"));
 app.use(
   cors({
-    origin: [
-      "http://localhost:3000", // Web frontend
-      "http://localhost:3001", // Admin panel
-      "https://safeaven.com",
-      "https://admin.safeaven.com",
-      "https://www.safeaven.com",
-      "https://www.admin.safeaven.com",
-      process.env.CORS_ORIGIN,
-    ].filter(Boolean),
+    origin: allowedOrigins,
     credentials: true,
   })
 );
