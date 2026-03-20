@@ -187,6 +187,13 @@ io.on("connection", (socket) => {
 
       // Message payload is relayed only; no server-side persistence.
       io.to(`group_${groupId}`).emit("new_message", message);
+      const room = io.sockets.adapter.rooms.get(`group_${groupId}`);
+      if (room && room.size > 1 && message?._id) {
+        socket.emit("group_message_delivered", {
+          groupId,
+          messageId: message._id,
+        });
+      }
       if (typeof callback === "function") {
         callback({ ok: true });
       }
@@ -286,6 +293,13 @@ io.on("connection", (socket) => {
       }
 
       io.to(`direct_${chatId}`).emit("new_direct_message", message);
+      const room = io.sockets.adapter.rooms.get(`direct_${chatId}`);
+      if (room && room.size > 1 && message?._id) {
+        socket.emit("direct_message_delivered", {
+          chatId,
+          messageId: message._id,
+        });
+      }
       if (typeof callback === "function") {
         callback({ ok: true });
       }
@@ -313,6 +327,42 @@ io.on("connection", (socket) => {
       typingUsers.get(groupId).delete(userId);
     }
     socket.to(`group_${groupId}`).emit("user_stopped_typing", { userId });
+  });
+
+  socket.on("group_messages_seen", async (data) => {
+    try {
+      const { groupId, messageIds } = data || {};
+      if (!socket.userId || !groupId || !Array.isArray(messageIds) || messageIds.length === 0) {
+        return;
+      }
+      const group = await UniversityGroup.findById(groupId).select("members isActive");
+      if (!group || !group.isActive) return;
+      const isMember = group.members.some(
+        (memberId) => memberId.toString() === socket.userId
+      );
+      if (!isMember) return;
+      socket.to(`group_${groupId}`).emit("group_messages_read", { groupId, messageIds });
+    } catch (error) {
+      console.error("group_messages_seen error:", error);
+    }
+  });
+
+  socket.on("direct_messages_seen", async (data) => {
+    try {
+      const { chatId, messageIds } = data || {};
+      if (!socket.userId || !chatId || !Array.isArray(messageIds) || messageIds.length === 0) {
+        return;
+      }
+      const chat = await DirectChat.findById(chatId).select("participants");
+      if (!chat) return;
+      const isParticipant = chat.participants.some(
+        (participantId) => participantId.toString() === socket.userId
+      );
+      if (!isParticipant) return;
+      socket.to(`direct_${chatId}`).emit("direct_messages_read", { chatId, messageIds });
+    } catch (error) {
+      console.error("direct_messages_seen error:", error);
+    }
   });
 
   // Handle disconnect
