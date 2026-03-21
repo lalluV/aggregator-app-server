@@ -104,12 +104,27 @@ const typingUsers = new Map(); // groupId -> Set of userIds
 io.on("connection", (socket) => {
   console.log("Client connected:", socket.id);
 
-  // Authenticate socket connection
-  socket.on("authenticate", (userId) => {
-    if (userId) {
-      socket.userId = userId;
-      connectedUsers.set(userId, socket.id);
-      console.log(`User ${userId} authenticated on socket ${socket.id}`);
+  // Authenticate socket connection and auto-join all rooms
+  socket.on("authenticate", async (userId) => {
+    if (!userId) return;
+    socket.userId = userId;
+    connectedUsers.set(userId, socket.id);
+    console.log(`User ${userId} authenticated on socket ${socket.id}`);
+
+    try {
+      const [groups, directChats] = await Promise.all([
+        UniversityGroup.find({ members: userId, isActive: true }).select("_id"),
+        DirectChat.find({ participants: userId }).select("_id"),
+      ]);
+
+      groups.forEach((group) => socket.join(`group_${group._id}`));
+      directChats.forEach((chat) => socket.join(`direct_${chat._id}`));
+
+      console.log(
+        `Auto-joined ${groups.length} groups, ${directChats.length} direct chats for user ${userId}`
+      );
+    } catch (error) {
+      console.error("Error auto-joining rooms on authenticate:", error);
     }
   });
 
@@ -157,50 +172,34 @@ io.on("connection", (socket) => {
     console.log(`Socket ${socket.id} left group_${groupId}`);
   });
 
-  // Handle new message
-  socket.on("send_message", async (data, callback) => {
-    try {
-      const { groupId, message } = data || {};
-      if (!socket.userId || !groupId || !message) {
-        if (typeof callback === "function") {
-          callback({ ok: false, error: "Invalid payload" });
-        }
-        return;
-      }
-
-      const group = await UniversityGroup.findById(groupId).select("members isActive");
-      if (!group || !group.isActive) {
-        if (typeof callback === "function") {
-          callback({ ok: false, error: "Group not found" });
-        }
-        return;
-      }
-      const isMember = group.members.some(
-        (memberId) => memberId.toString() === socket.userId
-      );
-      if (!isMember) {
-        if (typeof callback === "function") {
-          callback({ ok: false, error: "Not a group member" });
-        }
-        return;
-      }
-
-      // Message payload is relayed only; no server-side persistence.
-      io.to(`group_${groupId}`).emit("new_message", message);
-      const room = io.sockets.adapter.rooms.get(`group_${groupId}`);
-      if (room && room.size > 1 && message?._id) {
-        socket.emit("group_message_delivered", {
-          groupId,
-          messageId: message._id,
-        });
-      }
+  // Handle new message — fast room-membership check (no DB hit)
+  socket.on("send_message", (data, callback) => {
+    const { groupId, message } = data || {};
+    if (!socket.userId || !groupId || !message) {
       if (typeof callback === "function") {
-        callback({ ok: true });
+        callback({ ok: false, error: "Invalid payload" });
       }
-    } catch (error) {
+      return;
+    }
+
+    const roomName = `group_${groupId}`;
+    if (!socket.rooms.has(roomName)) {
       if (typeof callback === "function") {
-        callback({ ok: false, error: "Failed to relay message" });
+        callback({ ok: false, error: "Not in group room" });
       }
+      return;
+    }
+
+    io.to(roomName).emit("new_message", message);
+    const room = io.sockets.adapter.rooms.get(roomName);
+    if (room && room.size > 1 && message?._id) {
+      socket.emit("group_message_delivered", {
+        groupId,
+        messageId: message._id,
+      });
+    }
+    if (typeof callback === "function") {
+      callback({ ok: true });
     }
   });
 
@@ -264,49 +263,34 @@ io.on("connection", (socket) => {
     socket.leave(`direct_${chatId}`);
   });
 
-  // Relay direct message without persistence
-  socket.on("send_direct_message", async (data, callback) => {
-    try {
-      const { chatId, message } = data || {};
-      if (!socket.userId || !chatId || !message) {
-        if (typeof callback === "function") {
-          callback({ ok: false, error: "Invalid payload" });
-        }
-        return;
-      }
-
-      const chat = await DirectChat.findById(chatId).select("participants");
-      if (!chat) {
-        if (typeof callback === "function") {
-          callback({ ok: false, error: "Chat not found" });
-        }
-        return;
-      }
-      const isParticipant = chat.participants.some(
-        (participantId) => participantId.toString() === socket.userId
-      );
-      if (!isParticipant) {
-        if (typeof callback === "function") {
-          callback({ ok: false, error: "Not a participant" });
-        }
-        return;
-      }
-
-      io.to(`direct_${chatId}`).emit("new_direct_message", message);
-      const room = io.sockets.adapter.rooms.get(`direct_${chatId}`);
-      if (room && room.size > 1 && message?._id) {
-        socket.emit("direct_message_delivered", {
-          chatId,
-          messageId: message._id,
-        });
-      }
+  // Relay direct message — fast room-membership check (no DB hit)
+  socket.on("send_direct_message", (data, callback) => {
+    const { chatId, message } = data || {};
+    if (!socket.userId || !chatId || !message) {
       if (typeof callback === "function") {
-        callback({ ok: true });
+        callback({ ok: false, error: "Invalid payload" });
       }
-    } catch (error) {
+      return;
+    }
+
+    const roomName = `direct_${chatId}`;
+    if (!socket.rooms.has(roomName)) {
       if (typeof callback === "function") {
-        callback({ ok: false, error: "Failed to relay direct message" });
+        callback({ ok: false, error: "Not in direct chat room" });
       }
+      return;
+    }
+
+    io.to(roomName).emit("new_direct_message", message);
+    const room = io.sockets.adapter.rooms.get(roomName);
+    if (room && room.size > 1 && message?._id) {
+      socket.emit("direct_message_delivered", {
+        chatId,
+        messageId: message._id,
+      });
+    }
+    if (typeof callback === "function") {
+      callback({ ok: true });
     }
   });
 
@@ -329,40 +313,24 @@ io.on("connection", (socket) => {
     socket.to(`group_${groupId}`).emit("user_stopped_typing", { userId });
   });
 
-  socket.on("group_messages_seen", async (data) => {
-    try {
-      const { groupId, messageIds } = data || {};
-      if (!socket.userId || !groupId || !Array.isArray(messageIds) || messageIds.length === 0) {
-        return;
-      }
-      const group = await UniversityGroup.findById(groupId).select("members isActive");
-      if (!group || !group.isActive) return;
-      const isMember = group.members.some(
-        (memberId) => memberId.toString() === socket.userId
-      );
-      if (!isMember) return;
-      socket.to(`group_${groupId}`).emit("group_messages_read", { groupId, messageIds });
-    } catch (error) {
-      console.error("group_messages_seen error:", error);
+  socket.on("group_messages_seen", (data) => {
+    const { groupId, messageIds } = data || {};
+    if (!socket.userId || !groupId || !Array.isArray(messageIds) || messageIds.length === 0) {
+      return;
     }
+    const roomName = `group_${groupId}`;
+    if (!socket.rooms.has(roomName)) return;
+    socket.to(roomName).emit("group_messages_read", { groupId, messageIds });
   });
 
-  socket.on("direct_messages_seen", async (data) => {
-    try {
-      const { chatId, messageIds } = data || {};
-      if (!socket.userId || !chatId || !Array.isArray(messageIds) || messageIds.length === 0) {
-        return;
-      }
-      const chat = await DirectChat.findById(chatId).select("participants");
-      if (!chat) return;
-      const isParticipant = chat.participants.some(
-        (participantId) => participantId.toString() === socket.userId
-      );
-      if (!isParticipant) return;
-      socket.to(`direct_${chatId}`).emit("direct_messages_read", { chatId, messageIds });
-    } catch (error) {
-      console.error("direct_messages_seen error:", error);
+  socket.on("direct_messages_seen", (data) => {
+    const { chatId, messageIds } = data || {};
+    if (!socket.userId || !chatId || !Array.isArray(messageIds) || messageIds.length === 0) {
+      return;
     }
+    const roomName = `direct_${chatId}`;
+    if (!socket.rooms.has(roomName)) return;
+    socket.to(roomName).emit("direct_messages_read", { chatId, messageIds });
   });
 
   // Handle disconnect

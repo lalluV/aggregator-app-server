@@ -4,6 +4,17 @@ import { authenticate } from "../middleware/auth.js";
 
 const router = express.Router();
 
+function autoJoinSocketRoom(io, userId, roomName) {
+  if (!io) return;
+  const sockets = io.sockets?.sockets;
+  if (!sockets) return;
+  for (const [, socket] of sockets) {
+    if (socket.userId === userId) {
+      socket.join(roomName);
+    }
+  }
+}
+
 // GET /api/groups - List all university groups
 router.get("/", async (req, res) => {
   try {
@@ -76,6 +87,9 @@ router.post("/", authenticate, async (req, res) => {
       .populate("createdBy", "name email")
       .populate("admins", "name email");
 
+    const io = req.app.get("io");
+    autoJoinSocketRoom(io, userId, `group_${group._id}`);
+
     res.status(201).json({
       message: "Group created successfully",
       group: populatedGroup,
@@ -126,6 +140,9 @@ router.post("/:id/join", authenticate, async (req, res) => {
 
     group.members.push(userId);
     await group.save();
+
+    const io = req.app.get("io");
+    autoJoinSocketRoom(io, userId, `group_${group._id}`);
 
     res.json({
       message: "Joined group successfully",

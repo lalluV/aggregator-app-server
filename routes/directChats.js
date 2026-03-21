@@ -4,6 +4,17 @@ import { authenticate } from "../middleware/auth.js";
 
 const router = express.Router();
 
+function autoJoinSocketRoom(io, userId, roomName) {
+  if (!io) return;
+  const sockets = io.sockets?.sockets;
+  if (!sockets) return;
+  for (const [, socket] of sockets) {
+    if (socket.userId === userId) {
+      socket.join(roomName);
+    }
+  }
+}
+
 // Helper to get or create direct chat between two users
 async function getOrCreateDirectChat(userId, otherUserId) {
   const participants = [userId, otherUserId].sort();
@@ -69,6 +80,11 @@ router.post("/", authenticate, async (req, res) => {
 
     const chat = await getOrCreateDirectChat(userId, otherUserId);
     const other = chat.participants.find((p) => p._id.toString() !== userId);
+
+    const io = req.app.get("io");
+    const roomName = `direct_${chat._id}`;
+    autoJoinSocketRoom(io, userId, roomName);
+    autoJoinSocketRoom(io, otherUserId, roomName);
 
     res.json({
       chat: {
