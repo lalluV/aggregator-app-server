@@ -1,5 +1,6 @@
 import express from "express";
 import UniversityGroup from "../models/UniversityGroup.js";
+import ChatMessage from "../models/ChatMessage.js";
 import { authenticate } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -184,12 +185,11 @@ router.post("/:id/leave", authenticate, async (req, res) => {
   }
 });
 
-// GET /api/groups/:id/messages - Get chat history
+// GET /api/groups/:id/messages - Persisted chat history
 router.get("/:id/messages", authenticate, async (req, res) => {
   try {
     const userId = req.headers["x-user-id"];
 
-    // Check if user is a member
     const group = await UniversityGroup.findById(req.params.id);
     if (!group) {
       return res.status(404).json({ message: "Group not found" });
@@ -199,12 +199,35 @@ router.get("/:id/messages", authenticate, async (req, res) => {
       return res.status(403).json({ message: "Not a member of this group" });
     }
 
-    res.json({
-      messages: [],
-      count: 0,
-      socketOnly: true,
-      message: "Group messages are delivered in real time only and are not stored",
-    });
+    const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
+    const before = req.query.before;
+
+    const query = { group: req.params.id, isDeleted: { $ne: true } };
+    if (before) {
+      query.createdAt = { $lt: new Date(before) };
+    }
+
+    const messages = await ChatMessage.find(query)
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .populate("sender", "name email")
+      .populate("replyTo", "content sender messageType")
+      .lean();
+
+    const normalized = messages.map((m) => ({
+      ...m,
+      _id: m._id.toString(),
+      group: m.group?.toString?.() ?? m.group,
+      sender: m.sender
+        ? {
+            _id: m.sender._id?.toString(),
+            name: m.sender.name,
+            email: m.sender.email,
+          }
+        : m.sender,
+    }));
+
+    res.json({ messages: normalized, count: normalized.length });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -226,7 +249,7 @@ router.post("/:id/messages", authenticate, async (req, res) => {
     }
 
     res.status(202).json({
-      message: "Accepted for socket relay only; message is not persisted",
+      message: "Use socket send_message to persist and relay group messages",
       socketOnly: true,
     });
   } catch (error) {

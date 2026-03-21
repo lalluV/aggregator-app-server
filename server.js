@@ -24,6 +24,7 @@ import directChatRoutes from "./routes/directChats.js";
 import UniversityGroup from "./models/UniversityGroup.js";
 import DirectChat from "./models/DirectChat.js";
 import DirectMessage from "./models/DirectMessage.js";
+import ChatMessage from "./models/ChatMessage.js";
 import User from "./models/User.js";
 import {
   initFirebase,
@@ -279,8 +280,8 @@ io.on("connection", (socket) => {
     console.log(`Socket ${socket.id} left group_${groupId}`);
   });
 
-  // Handle new message — fast room-membership check (no DB hit)
-  socket.on("send_message", (data, callback) => {
+  // Group message — relay + persist to MongoDB
+  socket.on("send_message", async (data, callback) => {
     const { groupId, message } = data || {};
     if (!socket.userId || !groupId || !message) {
       if (typeof callback === "function") {
@@ -297,21 +298,72 @@ io.on("connection", (socket) => {
       return;
     }
 
-    io.to(roomName).emit("new_message", message);
+    const localId = message._id;
+    let savedMessage = message;
+
+    try {
+      const mt = message.messageType || "text";
+      const senderId = message.sender?._id || socket.userId;
+      const createPayload = {
+        group: groupId,
+        sender: senderId,
+        messageType: mt,
+        reactions: [],
+        mentions: [],
+        isEdited: !!message.isEdited,
+        isDeleted: !!message.isDeleted,
+        createdAt: message.createdAt ? new Date(message.createdAt) : new Date(),
+      };
+
+      if (mt === "text") {
+        createPayload.content = message.content ?? "";
+      } else if (mt === "image" || mt === "file") {
+        createPayload.mediaUrl =
+          message.mediaUrl || message.mediaUrls?.[0] || undefined;
+        if (message.content) {
+          createPayload.content = message.content;
+        }
+      }
+
+      if (
+        message.replyTo?._id &&
+        /^[0-9a-f]{24}$/i.test(String(message.replyTo._id))
+      ) {
+        createPayload.replyTo = message.replyTo._id;
+      }
+
+      const doc = await ChatMessage.create(createPayload);
+
+      savedMessage = {
+        ...message,
+        _id: doc._id.toString(),
+        localId,
+        group: groupId,
+        sender: message.sender || { _id: senderId },
+        createdAt: doc.createdAt.toISOString(),
+        updatedAt: doc.updatedAt
+          ? doc.updatedAt.toISOString()
+          : doc.createdAt.toISOString(),
+      };
+    } catch (err) {
+      console.error("Failed to persist group message:", err.message);
+      savedMessage = { ...message, group: groupId };
+    }
+
+    io.to(roomName).emit("new_message", savedMessage);
     const room = io.sockets.adapter.rooms.get(roomName);
-    if (room && room.size > 1 && message?._id) {
+    if (room && room.size > 1 && savedMessage?._id) {
       socket.emit("group_message_delivered", {
         groupId,
-        messageId: message._id,
+        messageId: savedMessage._id,
       });
     }
     if (typeof callback === "function") {
-      callback({ ok: true });
+      callback({ ok: true, messageId: savedMessage._id });
     }
 
-    // Push notifications to offline group members (fire-and-forget)
     if (isFirebaseReady()) {
-      pushToOfflineGroupMembers(groupId, socket.userId, message);
+      pushToOfflineGroupMembers(groupId, socket.userId, savedMessage);
     }
   });
 
