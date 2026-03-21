@@ -5,9 +5,24 @@ import { authenticate } from "../middleware/auth.js";
 
 const router = express.Router();
 
+/** Favorites are stored per User; agency sessions only have req.agency set */
+function favoritesUserId(req) {
+  if (req.userType === "AGENCY" || !req.user?._id) {
+    return null;
+  }
+  return req.user._id;
+}
+
 // POST /api/favorites - Add property to favorites
 router.post("/", authenticate, async (req, res) => {
   try {
+    const userId = favoritesUserId(req);
+    if (!userId) {
+      return res.status(403).json({
+        message: "Favorites are only available for personal accounts.",
+      });
+    }
+
     const { propertyId } = req.body;
 
     if (!propertyId) {
@@ -22,7 +37,7 @@ router.post("/", authenticate, async (req, res) => {
 
     // Check if already favorited
     const existing = await Favorite.findOne({
-      user: req.user._id,
+      user: userId,
       property: propertyId,
     });
 
@@ -31,7 +46,7 @@ router.post("/", authenticate, async (req, res) => {
     }
 
     const favorite = await Favorite.create({
-      user: req.user._id,
+      user: userId,
       property: propertyId,
     });
 
@@ -49,9 +64,16 @@ router.post("/", authenticate, async (req, res) => {
 // DELETE /api/favorites/:id - Remove from favorites
 router.delete("/:id", authenticate, async (req, res) => {
   try {
+    const userId = favoritesUserId(req);
+    if (!userId) {
+      return res.status(403).json({
+        message: "Favorites are only available for personal accounts.",
+      });
+    }
+
     const favorite = await Favorite.findOne({
       _id: req.params.id,
-      user: req.user._id,
+      user: userId,
     });
 
     if (!favorite) {
@@ -71,8 +93,15 @@ router.delete("/:id", authenticate, async (req, res) => {
 // DELETE /api/favorites/property/:propertyId - Remove by property ID
 router.delete("/property/:propertyId", authenticate, async (req, res) => {
   try {
+    const userId = favoritesUserId(req);
+    if (!userId) {
+      return res.status(403).json({
+        message: "Favorites are only available for personal accounts.",
+      });
+    }
+
     const favorite = await Favorite.findOneAndDelete({
-      user: req.user._id,
+      user: userId,
       property: req.params.propertyId,
     });
 
@@ -91,8 +120,13 @@ router.delete("/property/:propertyId", authenticate, async (req, res) => {
 // GET /api/favorites - Get user's favorites
 router.get("/", authenticate, async (req, res) => {
   try {
-    const favorites = await Favorite.find({ user: req.user._id })
-      .populate("property")
+    const userId = favoritesUserId(req);
+    if (!userId) {
+      return res.json({ count: 0, favorites: [] });
+    }
+
+    const favorites = await Favorite.find({ user: userId })
+      .populate({ path: "property", strictPopulate: false })
       .sort({ createdAt: -1 });
 
     res.json({
@@ -100,6 +134,7 @@ router.get("/", authenticate, async (req, res) => {
       favorites,
     });
   } catch (error) {
+    console.error("GET /api/favorites:", error);
     res.status(500).json({ message: error.message });
   }
 });
@@ -107,8 +142,13 @@ router.get("/", authenticate, async (req, res) => {
 // GET /api/favorites/check/:propertyId - Check if property is favorited
 router.get("/check/:propertyId", authenticate, async (req, res) => {
   try {
+    const userId = favoritesUserId(req);
+    if (!userId) {
+      return res.json({ isFavorited: false, favoriteId: null });
+    }
+
     const favorite = await Favorite.findOne({
-      user: req.user._id,
+      user: userId,
       property: req.params.propertyId,
     });
 

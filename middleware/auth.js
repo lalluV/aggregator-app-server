@@ -96,3 +96,11 @@ export const isCustomerOrAgency = (req, res, next) => {
   }
   next();
 };
+
+/** Only regular users (or admin) can purchase - agencies list properties, users buy them */
+export const isUser = (req, res, next) => {
+  if (req.userType !== "USER" && req.userType !== "ADMIN") {
+    return res.status(403).json({ message: "User account required to purchase" });
+  }
+  next();
+};

@@ -185,10 +185,14 @@ propertySchema.post(/^find/, async function (docs) {
   
   for (const doc of docsArray) {
     if (doc && doc.featured && doc.featuredUntil && new Date(doc.featuredUntil) < now) {
-      // Property has expired, update it
-      doc.featured = false;
-      doc.featuredUntil = null;
-      await doc.save({ validateBeforeSave: false });
+      try {
+        doc.featured = false;
+        doc.featuredUntil = null;
+        await doc.save({ validateBeforeSave: false });
+      } catch (err) {
+        // Do not fail the parent query (e.g. Favorite.populate("property"))
+        console.error("Featured expiry save failed for property:", doc._id, err);
+      }
     }
   }
 });

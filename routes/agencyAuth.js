@@ -124,17 +124,38 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// GET /api/agencies/assigned-leads - Get leads assigned to this agency
+const ASSIGNMENT_STATUSES = ["new", "contacted", "converted", "closed"];
+
+// GET /api/agencies/assigned-leads - Get leads assigned to this agency (?status=new|contacted|converted|closed|all)
 router.get("/assigned-leads", authenticate, isAgency, async (req, res) => {
   try {
-    const assignments = await LeadAssignment.find({
-      agencyId: req.agency._id,
-    })
+    const { status } = req.query;
+    const filter = { agencyId: req.agency._id };
+    if (
+      status &&
+      status !== "all" &&
+      ASSIGNMENT_STATUSES.includes(String(status))
+    ) {
+      filter.status = status;
+    }
+
+    const assignments = await LeadAssignment.find(filter)
       .populate("universityApplicationId")
       .sort({ assignedAt: -1 });
 
     const leads = assignments
-      .map((a) => a.universityApplicationId)
+      .map((a) => {
+        const app = a.universityApplicationId;
+        if (!app) return null;
+        const appObj =
+          typeof app.toObject === "function" ? app.toObject() : { ...app };
+        return {
+          assignmentId: a._id,
+          assignedAt: a.assignedAt,
+          assignmentStatus: a.status,
+          ...appObj,
+        };
+      })
       .filter(Boolean);
 
     res.json({ count: leads.length, leads });
@@ -142,6 +163,46 @@ router.get("/assigned-leads", authenticate, isAgency, async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+
+// PATCH /api/agencies/assigned-leads/:assignmentId/status - Update pipeline status (agency only)
+router.patch(
+  "/assigned-leads/:assignmentId/status",
+  authenticate,
+  isAgency,
+  async (req, res) => {
+    try {
+      const { status } = req.body;
+      if (!status || !ASSIGNMENT_STATUSES.includes(status)) {
+        return res.status(400).json({
+          message: `status must be one of: ${ASSIGNMENT_STATUSES.join(", ")}`,
+        });
+      }
+
+      const assignment = await LeadAssignment.findOne({
+        _id: req.params.assignmentId,
+        agencyId: req.agency._id,
+      });
+
+      if (!assignment) {
+        return res.status(404).json({ message: "Assignment not found" });
+      }
+
+      assignment.status = status;
+      await assignment.save();
+
+      res.json({
+        message: "Status updated",
+        assignment: {
+          assignmentId: assignment._id,
+          assignmentStatus: assignment.status,
+          assignedAt: assignment.assignedAt,
+        },
+      });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  },
+);
 
 // GET /api/agencies/me
 router.get("/me", authenticate, isAgency, async (req, res) => {

@@ -8,7 +8,7 @@ const router = express.Router();
 // GET /api/agencies - List all agencies
 router.get("/", async (req, res) => {
   try {
-    const { category, city, country, limit } = req.query;
+    const { category, city, country, limit, q } = req.query;
 
     let query = { isApproved: true };
 
@@ -21,6 +21,11 @@ router.get("/", async (req, res) => {
     if (country) {
       // Filter by country name (case-insensitive)
       query.country = new RegExp(`^${country}$`, "i");
+    }
+    if (q && String(q).trim()) {
+      const escaped = String(q).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const term = new RegExp(escaped, "i");
+      query.$or = [{ name: term }, { city: term }];
     }
 
     let agenciesQuery = Agency.find(query)

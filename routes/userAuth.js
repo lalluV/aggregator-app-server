@@ -1,6 +1,7 @@
 import express from "express";
 import bcrypt from "bcrypt";
 import User from "../models/User.js";
+import Agency from "../models/Agency.js";
 import { authenticate } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -148,12 +149,33 @@ router.patch("/profile", authenticate, async (req, res) => {
   }
 });
 
-// POST /api/users/fcm-token — register or refresh device token
+// POST /api/users/fcm-token — register or refresh device token (USER or AGENCY)
 router.post("/fcm-token", authenticate, async (req, res) => {
   try {
     const { token, platform } = req.body;
     if (!token) {
       return res.status(400).json({ message: "token is required" });
+    }
+
+    if (req.userType === "AGENCY") {
+      const agency = await Agency.findById(req.agency._id);
+      if (!agency) return res.status(404).json({ message: "Agency not found" });
+
+      const existing = agency.fcmTokens.find((t) => t.token === token);
+      if (existing) {
+        existing.platform = platform || existing.platform;
+        existing.updatedAt = new Date();
+      } else {
+        agency.fcmTokens.push({
+          token,
+          platform: platform || "android",
+          updatedAt: new Date(),
+        });
+      }
+
+      await agency.save();
+      res.json({ message: "Token registered" });
+      return;
     }
 
     const user = await User.findById(req.user._id);
@@ -178,7 +200,7 @@ router.post("/fcm-token", authenticate, async (req, res) => {
   }
 });
 
-// DELETE /api/users/fcm-token — remove device token on logout
+// DELETE /api/users/fcm-token — remove device token on logout (USER or AGENCY)
 router.delete("/fcm-token", authenticate, async (req, res) => {
   try {
     const { token } = req.body;
@@ -186,9 +208,15 @@ router.delete("/fcm-token", authenticate, async (req, res) => {
       return res.status(400).json({ message: "token is required" });
     }
 
-    await User.findByIdAndUpdate(req.user._id, {
-      $pull: { fcmTokens: { token } },
-    });
+    if (req.userType === "AGENCY") {
+      await Agency.findByIdAndUpdate(req.agency._id, {
+        $pull: { fcmTokens: { token } },
+      });
+    } else {
+      await User.findByIdAndUpdate(req.user._id, {
+        $pull: { fcmTokens: { token } },
+      });
+    }
 
     res.json({ message: "Token removed" });
   } catch (error) {

@@ -21,6 +21,7 @@ import partnerRoutes from "./routes/partners.js";
 import universityApplicationRoutes from "./routes/universityApplications.js";
 import groupRoutes from "./routes/groups.js";
 import directChatRoutes from "./routes/directChats.js";
+import purchasesRoutes, { handleWebhook } from "./routes/purchases.js";
 import UniversityGroup from "./models/UniversityGroup.js";
 import DirectChat from "./models/DirectChat.js";
 import DirectMessage from "./models/DirectMessage.js";
@@ -77,6 +78,13 @@ app.use(
     credentials: true,
   }),
 );
+// Stripe webhook - MUST be before JSON parser to receive raw body for signature verification
+app.post(
+  "/api/purchases/webhook",
+  express.raw({ type: "application/json" }),
+  handleWebhook
+);
+
 // Middleware - only parse JSON when Content-Type is application/json (avoid parsing multipart as JSON)
 app.use((req, res, next) => {
   const contentType = req.headers["content-type"] || "";
@@ -107,6 +115,7 @@ app.use("/api/partners", partnerRoutes);
 app.use("/api/university-applications", universityApplicationRoutes);
 app.use("/api/groups", groupRoutes);
 app.use("/api/direct-chats", directChatRoutes);
+app.use("/api/purchases", purchasesRoutes);
 
 // Socket.io connection handling
 const connectedUsers = new Map(); // userId -> socketId

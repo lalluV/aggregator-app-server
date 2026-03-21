@@ -118,6 +118,16 @@ const agencySchema = new mongoose.Schema({
   longitude: {
     type: Number,
   },
+  fcmTokens: {
+    type: [
+      {
+        token: { type: String, required: true },
+        platform: { type: String, enum: ["android", "ios"], default: "android" },
+        updatedAt: { type: Date, default: Date.now },
+      },
+    ],
+    default: [],
+  },
   createdAt: {
     type: Date,
     default: Date.now,

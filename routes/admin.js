@@ -580,6 +580,43 @@ router.patch(
   }
 );
 
+// GET /api/admin/lead-assignments - All leads sent to agencies (with pipeline + application status)
+router.get("/lead-assignments", authenticate, isAdmin, async (req, res) => {
+  try {
+    const { status } = req.query;
+    const filter = {};
+    const pipelineStatuses = ["new", "contacted", "converted", "closed"];
+    if (
+      status &&
+      status !== "all" &&
+      pipelineStatuses.includes(String(status))
+    ) {
+      filter.status = status;
+    }
+
+    const assignments = await LeadAssignment.find(filter)
+      .populate("agencyId", "name email city country phone")
+      .populate("universityApplicationId")
+      .populate("assignedBy", "name email")
+      .sort({ assignedAt: -1 })
+      .lean();
+
+    const rows = assignments.map((a) => ({
+      _id: a._id,
+      status: a.status,
+      assignedAt: a.assignedAt,
+      agency: a.agencyId,
+      application: a.universityApplicationId,
+      assignedBy: a.assignedBy,
+    }));
+
+    res.json({ count: rows.length, assignments: rows });
+  } catch (error) {
+    console.error("Error listing lead assignments:", error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // POST /api/admin/university-applications/bulk-assign - Bulk assign leads to agency
 router.post(
   "/university-applications/bulk-assign",

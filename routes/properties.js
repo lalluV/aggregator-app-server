@@ -42,7 +42,8 @@ router.post("/", authenticate, isCustomerOrAgency, async (req, res) => {
     // Only admin can create "project" type (via /api/admin/properties)
     if (propertyType === "project") {
       return res.status(403).json({
-        message: "Only admin can create Project properties. Use the admin panel.",
+        message:
+          "Only admin can create Project properties. Use the admin panel.",
       });
     }
 
@@ -74,7 +75,7 @@ router.post("/", authenticate, isCustomerOrAgency, async (req, res) => {
     // Validate that if photos exist, at least one must be a thumbnail
     if (normalizedPhotos.length > 0) {
       const hasThumbnail = normalizedPhotos.some(
-        (photo) => photo.isThumbnail === true
+        (photo) => photo.isThumbnail === true,
       );
       if (!hasThumbnail) {
         return res.status(400).json({
@@ -95,7 +96,10 @@ router.post("/", authenticate, isCustomerOrAgency, async (req, res) => {
       nearbyUniversities: Array.isArray(nearbyUniversities)
         ? nearbyUniversities
             .filter((u) => u && u.name && typeof u.miles === "number")
-            .map((u) => ({ name: String(u.name).trim(), miles: Number(u.miles) }))
+            .map((u) => ({
+              name: String(u.name).trim(),
+              miles: Number(u.miles),
+            }))
         : [],
       photos: normalizedPhotos,
       bedrooms: bedrooms ? parseInt(bedrooms) : undefined,
@@ -314,7 +318,7 @@ router.get(
     } catch (error) {
       res.status(500).json({ message: error.message });
     }
-  }
+  },
 );
 
 // GET /api/my/interests - Interests on my properties (MUST come before /:id route)
@@ -492,14 +496,22 @@ router.put("/:id", authenticate, isCustomerOrAgency, async (req, res) => {
             req.body[field] === true || req.body[field] === "true";
         } else if (field === "availableFrom") {
           property[field] = new Date(req.body[field]);
-        } else if (field === "address" || field === "nearbyPlaces" || field === "projectUrl") {
-          property[field] = req.body[field] != null ? String(req.body[field]).trim() : "";
+        } else if (
+          field === "address" ||
+          field === "nearbyPlaces" ||
+          field === "projectUrl"
+        ) {
+          property[field] =
+            req.body[field] != null ? String(req.body[field]).trim() : "";
         } else if (field === "nearbyUniversities") {
           const arr = req.body[field];
           property[field] = Array.isArray(arr)
             ? arr
                 .filter((u) => u && u.name && typeof u.miles === "number")
-                .map((u) => ({ name: String(u.name).trim(), miles: Number(u.miles) }))
+                .map((u) => ({
+                  name: String(u.name).trim(),
+                  miles: Number(u.miles),
+                }))
             : [];
         } else if (field === "photos") {
           // Normalize and validate photos
@@ -529,7 +541,7 @@ router.put("/:id", authenticate, isCustomerOrAgency, async (req, res) => {
           // Validate that if photos exist, at least one must be a thumbnail
           if (normalizedPhotos.length > 0) {
             const hasThumbnail = normalizedPhotos.some(
-              (photo) => photo.isThumbnail === true
+              (photo) => photo.isThumbnail === true,
             );
             if (!hasThumbnail) {
               return res.status(400).json({
@@ -644,9 +656,10 @@ router.post(
       }
 
       // Check ownership
-      const propertyOwnerId = (property.owner?._id || property.owner).toString();
-      const ownerId =
-        req.userType === "AGENCY" ? req.agency._id : req.user._id;
+      const propertyOwnerId = (
+        property.owner?._id || property.owner
+      ).toString();
+      const ownerId = req.userType === "AGENCY" ? req.agency._id : req.user._id;
       const expectedOwnerType = req.userType === "AGENCY" ? "Agency" : "User";
 
       if (
@@ -678,7 +691,9 @@ router.post(
         const now = new Date();
         if (currentExpiry > now) {
           // Extend from current expiry date
-          expiryDate.setTime(currentExpiry.getTime() + days * 24 * 60 * 60 * 1000);
+          expiryDate.setTime(
+            currentExpiry.getTime() + days * 24 * 60 * 60 * 1000,
+          );
         }
       }
 
@@ -701,7 +716,7 @@ router.post(
     } catch (error) {
       res.status(500).json({ message: error.message });
     }
-  }
+  },
 );
 
 export default router;
