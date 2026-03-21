@@ -148,6 +148,54 @@ router.patch("/profile", authenticate, async (req, res) => {
   }
 });
 
+// POST /api/users/fcm-token — register or refresh device token
+router.post("/fcm-token", authenticate, async (req, res) => {
+  try {
+    const { token, platform } = req.body;
+    if (!token) {
+      return res.status(400).json({ message: "token is required" });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const existing = user.fcmTokens.find((t) => t.token === token);
+    if (existing) {
+      existing.platform = platform || existing.platform;
+      existing.updatedAt = new Date();
+    } else {
+      user.fcmTokens.push({
+        token,
+        platform: platform || "android",
+        updatedAt: new Date(),
+      });
+    }
+
+    await user.save();
+    res.json({ message: "Token registered" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// DELETE /api/users/fcm-token — remove device token on logout
+router.delete("/fcm-token", authenticate, async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token) {
+      return res.status(400).json({ message: "token is required" });
+    }
+
+    await User.findByIdAndUpdate(req.user._id, {
+      $pull: { fcmTokens: { token } },
+    });
+
+    res.json({ message: "Token removed" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // POST /api/users/logout
 router.post("/logout", (req, res) => {
   res.json({ message: "Logged out successfully" });

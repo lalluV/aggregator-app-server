@@ -23,12 +23,17 @@ import groupRoutes from "./routes/groups.js";
 import directChatRoutes from "./routes/directChats.js";
 import UniversityGroup from "./models/UniversityGroup.js";
 import DirectChat from "./models/DirectChat.js";
+import User from "./models/User.js";
+import { initFirebase, sendPushNotifications, isFirebaseReady } from "./utils/firebase.js";
 
 // Load env variables
 dotenv.config();
 
 // Connect to database
 connectDB();
+
+// Initialize Firebase for push notifications
+initFirebase();
 
 // Initialize express and HTTP server
 const app = express();
@@ -64,12 +69,12 @@ app.use(
   cors({
     origin: allowedOrigins,
     credentials: true,
-  })
+  }),
 );
 // Middleware - only parse JSON when Content-Type is application/json (avoid parsing multipart as JSON)
 app.use((req, res, next) => {
-  const contentType = req.headers['content-type'] || '';
-  if (contentType.includes('application/json')) {
+  const contentType = req.headers["content-type"] || "";
+  if (contentType.includes("application/json")) {
     express.json()(req, res, next);
   } else {
     next();
@@ -101,6 +106,95 @@ app.use("/api/direct-chats", directChatRoutes);
 const connectedUsers = new Map(); // userId -> socketId
 const typingUsers = new Map(); // groupId -> Set of userIds
 
+// Push notification helpers — run async, never block the socket handler
+async function pushToOfflineGroupMembers(groupId, senderId, message) {
+  try {
+    const group = await UniversityGroup.findById(groupId).select("members name");
+    if (!group) return;
+
+    const offlineMembers = group.members
+      .map((id) => id.toString())
+      .filter((id) => id !== senderId && !connectedUsers.has(id));
+    if (offlineMembers.length === 0) return;
+
+    const users = await User.find(
+      { _id: { $in: offlineMembers }, "fcmTokens.0": { $exists: true } },
+      { fcmTokens: 1 }
+    ).lean();
+
+    const tokens = users.flatMap((u) => u.fcmTokens.map((t) => t.token));
+    if (tokens.length === 0) return;
+
+    const senderName = message.sender?.name || "Someone";
+    const body =
+      message.messageType === "image"
+        ? `${senderName} sent a photo`
+        : message.content || "New message";
+
+    const result = await sendPushNotifications(tokens, {
+      title: group.name || "Group",
+      body,
+      data: { type: "group", groupId, groupName: group.name || "" },
+    });
+
+    if (result.failedTokens.length > 0) {
+      await User.updateMany(
+        { "fcmTokens.token": { $in: result.failedTokens } },
+        { $pull: { fcmTokens: { token: { $in: result.failedTokens } } } }
+      );
+    }
+  } catch (error) {
+    console.error("pushToOfflineGroupMembers error:", error.message);
+  }
+}
+
+async function pushToOfflineDirectRecipient(chatId, senderId, message) {
+  try {
+    const chat = await DirectChat.findById(chatId).select("participants");
+    if (!chat) return;
+
+    const recipientId = chat.participants
+      .map((id) => id.toString())
+      .find((id) => id !== senderId);
+    if (!recipientId || connectedUsers.has(recipientId)) return;
+
+    const user = await User.findOne(
+      { _id: recipientId, "fcmTokens.0": { $exists: true } },
+      { fcmTokens: 1 }
+    ).lean();
+    if (!user) return;
+
+    const tokens = user.fcmTokens.map((t) => t.token);
+    if (tokens.length === 0) return;
+
+    const senderName = message.sender?.name || "Someone";
+    const body =
+      message.messageType === "image"
+        ? `${senderName} sent a photo`
+        : message.content || "New message";
+
+    const result = await sendPushNotifications(tokens, {
+      title: senderName,
+      body,
+      data: {
+        type: "direct",
+        chatId,
+        otherUserId: senderId,
+        otherUserName: senderName,
+      },
+    });
+
+    if (result.failedTokens.length > 0) {
+      await User.updateMany(
+        { "fcmTokens.token": { $in: result.failedTokens } },
+        { $pull: { fcmTokens: { token: { $in: result.failedTokens } } } }
+      );
+    }
+  } catch (error) {
+    console.error("pushToOfflineDirectRecipient error:", error.message);
+  }
+}
+
 io.on("connection", (socket) => {
   console.log("Client connected:", socket.id);
 
@@ -121,7 +215,7 @@ io.on("connection", (socket) => {
       directChats.forEach((chat) => socket.join(`direct_${chat._id}`));
 
       console.log(
-        `Auto-joined ${groups.length} groups, ${directChats.length} direct chats for user ${userId}`
+        `Auto-joined ${groups.length} groups, ${directChats.length} direct chats for user ${userId}`,
       );
     } catch (error) {
       console.error("Error auto-joining rooms on authenticate:", error);
@@ -137,7 +231,8 @@ io.on("connection", (socket) => {
         }
         return;
       }
-      const group = await UniversityGroup.findById(groupId).select("members isActive");
+      const group =
+        await UniversityGroup.findById(groupId).select("members isActive");
       if (!group || !group.isActive) {
         if (typeof callback === "function") {
           callback({ ok: false, error: "Group not found" });
@@ -145,7 +240,7 @@ io.on("connection", (socket) => {
         return;
       }
       const isMember = group.members.some(
-        (memberId) => memberId.toString() === socket.userId
+        (memberId) => memberId.toString() === socket.userId,
       );
       if (!isMember) {
         if (typeof callback === "function") {
@@ -201,6 +296,11 @@ io.on("connection", (socket) => {
     if (typeof callback === "function") {
       callback({ ok: true });
     }
+
+    // Push notifications to offline group members (fire-and-forget)
+    if (isFirebaseReady()) {
+      pushToOfflineGroupMembers(groupId, socket.userId, message);
+    }
   });
 
   // Handle message edit
@@ -239,7 +339,7 @@ io.on("connection", (socket) => {
         return;
       }
       const isParticipant = chat.participants.some(
-        (participantId) => participantId.toString() === socket.userId
+        (participantId) => participantId.toString() === socket.userId,
       );
       if (!isParticipant) {
         if (typeof callback === "function") {
@@ -292,6 +392,11 @@ io.on("connection", (socket) => {
     if (typeof callback === "function") {
       callback({ ok: true });
     }
+
+    // Push notification to offline participant (fire-and-forget)
+    if (isFirebaseReady()) {
+      pushToOfflineDirectRecipient(chatId, socket.userId, message);
+    }
   });
 
   // Handle typing indicator
@@ -301,7 +406,7 @@ io.on("connection", (socket) => {
       typingUsers.set(groupId, new Set());
     }
     typingUsers.get(groupId).add(userId);
-    
+
     socket.to(`group_${groupId}`).emit("user_typing", { userId, userName });
   });
 
@@ -315,7 +420,12 @@ io.on("connection", (socket) => {
 
   socket.on("group_messages_seen", (data) => {
     const { groupId, messageIds } = data || {};
-    if (!socket.userId || !groupId || !Array.isArray(messageIds) || messageIds.length === 0) {
+    if (
+      !socket.userId ||
+      !groupId ||
+      !Array.isArray(messageIds) ||
+      messageIds.length === 0
+    ) {
       return;
     }
     const roomName = `group_${groupId}`;
@@ -325,7 +435,12 @@ io.on("connection", (socket) => {
 
   socket.on("direct_messages_seen", (data) => {
     const { chatId, messageIds } = data || {};
-    if (!socket.userId || !chatId || !Array.isArray(messageIds) || messageIds.length === 0) {
+    if (
+      !socket.userId ||
+      !chatId ||
+      !Array.isArray(messageIds) ||
+      messageIds.length === 0
+    ) {
       return;
     }
     const roomName = `direct_${chatId}`;
@@ -341,7 +456,9 @@ io.on("connection", (socket) => {
       typingUsers.forEach((users, groupId) => {
         if (users.has(socket.userId)) {
           users.delete(socket.userId);
-          io.to(`group_${groupId}`).emit("user_stopped_typing", { userId: socket.userId });
+          io.to(`group_${groupId}`).emit("user_stopped_typing", {
+            userId: socket.userId,
+          });
         }
       });
     }
@@ -368,7 +485,10 @@ httpServer.listen(PORT, () => {
   cleanupExpiredFeatured().catch(console.error);
 
   // Run cleanup every 12 hours
-  setInterval(() => {
-    cleanupExpiredFeatured().catch(console.error);
-  }, 12 * 60 * 60 * 1000); // 12 hours in milliseconds
+  setInterval(
+    () => {
+      cleanupExpiredFeatured().catch(console.error);
+    },
+    12 * 60 * 60 * 1000,
+  ); // 12 hours in milliseconds
 });
