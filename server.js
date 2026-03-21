@@ -23,8 +23,13 @@ import groupRoutes from "./routes/groups.js";
 import directChatRoutes from "./routes/directChats.js";
 import UniversityGroup from "./models/UniversityGroup.js";
 import DirectChat from "./models/DirectChat.js";
+import DirectMessage from "./models/DirectMessage.js";
 import User from "./models/User.js";
-import { initFirebase, sendPushNotifications, isFirebaseReady } from "./utils/firebase.js";
+import {
+  initFirebase,
+  sendPushNotifications,
+  isFirebaseReady,
+} from "./utils/firebase.js";
 
 // Load env variables
 dotenv.config();
@@ -109,7 +114,8 @@ const typingUsers = new Map(); // groupId -> Set of userIds
 // Push notification helpers — run async, never block the socket handler
 async function pushToOfflineGroupMembers(groupId, senderId, message) {
   try {
-    const group = await UniversityGroup.findById(groupId).select("members name");
+    const group =
+      await UniversityGroup.findById(groupId).select("members name");
     if (!group) return;
 
     const offlineMembers = group.members
@@ -119,7 +125,7 @@ async function pushToOfflineGroupMembers(groupId, senderId, message) {
 
     const users = await User.find(
       { _id: { $in: offlineMembers }, "fcmTokens.0": { $exists: true } },
-      { fcmTokens: 1 }
+      { fcmTokens: 1 },
     ).lean();
 
     const tokens = users.flatMap((u) => u.fcmTokens.map((t) => t.token));
@@ -134,13 +140,18 @@ async function pushToOfflineGroupMembers(groupId, senderId, message) {
     const result = await sendPushNotifications(tokens, {
       title: group.name || "Group",
       body,
-      data: { type: "group", groupId, groupName: group.name || "" },
+      data: {
+        type: "group",
+        groupId,
+        groupName: group.name || "",
+        messagePayload: JSON.stringify(message),
+      },
     });
 
     if (result.failedTokens.length > 0) {
       await User.updateMany(
         { "fcmTokens.token": { $in: result.failedTokens } },
-        { $pull: { fcmTokens: { token: { $in: result.failedTokens } } } }
+        { $pull: { fcmTokens: { token: { $in: result.failedTokens } } } },
       );
     }
   } catch (error) {
@@ -160,7 +171,7 @@ async function pushToOfflineDirectRecipient(chatId, senderId, message) {
 
     const user = await User.findOne(
       { _id: recipientId, "fcmTokens.0": { $exists: true } },
-      { fcmTokens: 1 }
+      { fcmTokens: 1 },
     ).lean();
     if (!user) return;
 
@@ -181,13 +192,14 @@ async function pushToOfflineDirectRecipient(chatId, senderId, message) {
         chatId,
         otherUserId: senderId,
         otherUserName: senderName,
+        messagePayload: JSON.stringify(message),
       },
     });
 
     if (result.failedTokens.length > 0) {
       await User.updateMany(
         { "fcmTokens.token": { $in: result.failedTokens } },
-        { $pull: { fcmTokens: { token: { $in: result.failedTokens } } } }
+        { $pull: { fcmTokens: { token: { $in: result.failedTokens } } } },
       );
     }
   } catch (error) {
@@ -363,8 +375,8 @@ io.on("connection", (socket) => {
     socket.leave(`direct_${chatId}`);
   });
 
-  // Relay direct message — fast room-membership check (no DB hit)
-  socket.on("send_direct_message", (data, callback) => {
+  // Relay direct message and persist to DB
+  socket.on("send_direct_message", async (data, callback) => {
     const { chatId, message } = data || {};
     if (!socket.userId || !chatId || !message) {
       if (typeof callback === "function") {
@@ -381,21 +393,57 @@ io.on("connection", (socket) => {
       return;
     }
 
-    io.to(roomName).emit("new_direct_message", message);
+    const localId = message._id;
+
+    // Persist to DB (fire-and-forget for speed, but attach the real _id to the broadcast)
+    let savedMessage = message;
+    try {
+      const userType = message.sender?.type === "Agency" ? "Agency" : "User";
+      const doc = await DirectMessage.create({
+        directChat: chatId,
+        sender: message.sender?._id || socket.userId,
+        senderModel: userType,
+        messageType: message.messageType || "text",
+        content: message.content || undefined,
+        mediaUrl: message.mediaUrl || undefined,
+        replyTo:
+          message.replyTo?._id && /^[0-9a-f]{24}$/i.test(message.replyTo._id)
+            ? message.replyTo._id
+            : undefined,
+        createdAt: message.createdAt || new Date(),
+      });
+
+      savedMessage = {
+        ...message,
+        _id: doc._id.toString(),
+        localId,
+        directChat: chatId,
+        createdAt: doc.createdAt.toISOString(),
+      };
+
+      DirectChat.findByIdAndUpdate(chatId, {
+        lastMessageAt: doc.createdAt,
+      }).catch(() => {});
+    } catch (err) {
+      console.error("Failed to persist direct message:", err.message);
+      savedMessage = { ...message, localId, directChat: chatId };
+    }
+
+    io.to(roomName).emit("new_direct_message", savedMessage);
     const room = io.sockets.adapter.rooms.get(roomName);
-    if (room && room.size > 1 && message?._id) {
+    if (room && room.size > 1 && savedMessage?._id) {
       socket.emit("direct_message_delivered", {
         chatId,
-        messageId: message._id,
+        messageId: savedMessage._id,
       });
     }
     if (typeof callback === "function") {
-      callback({ ok: true });
+      callback({ ok: true, messageId: savedMessage._id });
     }
 
     // Push notification to offline participant (fire-and-forget)
     if (isFirebaseReady()) {
-      pushToOfflineDirectRecipient(chatId, socket.userId, message);
+      pushToOfflineDirectRecipient(chatId, socket.userId, savedMessage);
     }
   });
 

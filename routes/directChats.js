@@ -1,5 +1,6 @@
 import express from "express";
 import DirectChat from "../models/DirectChat.js";
+import DirectMessage from "../models/DirectMessage.js";
 import { authenticate } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -27,7 +28,7 @@ async function getOrCreateDirectChat(userId, otherUserId) {
     chat = await DirectChat.create({ participants });
     chat = await DirectChat.findById(chat._id).populate(
       "participants",
-      "name email"
+      "name email",
     );
   }
 
@@ -45,9 +46,7 @@ router.get("/", authenticate, async (req, res) => {
       .lean();
 
     const chatsWithOther = chats.map((chat) => {
-      const other = chat.participants.find(
-        (p) => p._id.toString() !== userId
-      );
+      const other = chat.participants.find((p) => p._id.toString() !== userId);
       return {
         _id: chat._id,
         otherUser: other,
@@ -103,7 +102,8 @@ router.post("/", authenticate, async (req, res) => {
 // PUT /api/direct-chats/messages/:id - Edit message (must be before /:id)
 router.put("/messages/:id", authenticate, async (req, res) => {
   return res.status(410).json({
-    message: "Message edit endpoint is disabled; use socket events for ephemeral chat",
+    message:
+      "Message edit endpoint is disabled; use socket events for ephemeral chat",
     socketOnly: true,
   });
 });
@@ -130,7 +130,7 @@ router.get("/:id", authenticate, async (req, res) => {
     }
 
     const isParticipant = chat.participants.some(
-      (p) => p._id.toString() === userId
+      (p) => p._id.toString() === userId,
     );
     if (!isParticipant) {
       return res.status(403).json({ message: "Not authorized" });
@@ -148,7 +148,7 @@ router.get("/:id", authenticate, async (req, res) => {
   }
 });
 
-// GET /api/direct-chats/:id/messages - Socket-only message channel
+// GET /api/direct-chats/:id/messages - Fetch persisted messages
 router.get("/:id/messages", authenticate, async (req, res) => {
   try {
     const userId = req.headers["x-user-id"];
@@ -162,13 +162,22 @@ router.get("/:id/messages", authenticate, async (req, res) => {
       return res.status(403).json({ message: "Not authorized" });
     }
 
-    res.json({
-      messages: [],
-      count: 0,
-      socketOnly: true,
-      message:
-        "Direct messages are delivered in real time only and are not stored",
-    });
+    const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+    const before = req.query.before;
+
+    const query = { directChat: req.params.id, isDeleted: { $ne: true } };
+    if (before) {
+      query.createdAt = { $lt: new Date(before) };
+    }
+
+    const messages = await DirectMessage.find(query)
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .populate("sender", "name email")
+      .populate("replyTo", "content sender messageType")
+      .lean();
+
+    res.json({ messages, count: messages.length });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
