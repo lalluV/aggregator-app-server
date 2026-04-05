@@ -2,50 +2,92 @@ import express from "express";
 import Stripe from "stripe";
 import Property from "../models/Property.js";
 import Purchase from "../models/Purchase.js";
-import { authenticate, isUser, isCustomerOrAgency } from "../middleware/auth.js";
+import { getFeaturedPlansFromDb } from "../models/AppSettings.js";
+import {
+  authenticate,
+  isUser,
+  isCustomerOrAgency,
+} from "../middleware/auth.js";
 
 const router = express.Router();
 
-const FEATURED_PLANS = [
-  { days: 7, price: 9.99 },
-  { days: 30, price: 29.99 },
-  { days: 90, price: 79.99 },
-  { days: 180, price: 139.99 },
-  { days: 365, price: 249.99 },
-];
+/** Public: featured subscription tiers (amounts from DB or defaults). */
+router.get("/featured-plans", async (req, res) => {
+  try {
+    const plans = await getFeaturedPlansFromDb();
+    res.json({ plans });
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+});
 
-const stripeSecretKey =
-  process.env.STRIPE_SECRET_KEY || process.env.STRIPE_TEST_SECRET_KEY;
+const isProduction = process.env.NODE_ENV === "production";
+
+function resolveStripeSecretKey() {
+  const live = process.env.STRIPE_SECRET_KEY?.trim();
+  const test = process.env.STRIPE_TEST_SECRET_KEY?.trim();
+
+  if (isProduction) {
+    if (!live) return null;
+    if (!live.startsWith("sk_live_")) {
+      console.error(
+        "[Stripe] NODE_ENV=production requires STRIPE_SECRET_KEY=sk_live_... (test keys are not accepted).",
+      );
+      return null;
+    }
+    return live;
+  }
+
+  return test || live || null;
+}
+
+const stripeSecretKey = resolveStripeSecretKey();
 const stripe = stripeSecretKey ? new Stripe(stripeSecretKey) : null;
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim();
+
+if (stripeSecretKey) {
+  const mode = stripeSecretKey.startsWith("sk_live_") ? "live" : "test";
+  console.log(`[Stripe] Initialized (${mode} mode)`);
+}
+
+if (isProduction && stripe && !webhookSecret) {
+  console.warn(
+    "[Stripe] STRIPE_WEBHOOK_SECRET is unset; checkout.session.completed will not be processed until you add a live webhook signing secret.",
+  );
+}
 
 /** Map display symbols (A$, $, £, etc.) to Stripe's 3-letter ISO currency codes */
 const CURRENCY_SYMBOL_TO_ISO = {
   $: "usd",
-  "usd": "usd",
-  "a$": "aud",
-  "aud": "aud",
-  "c$": "cad",
-  "cad": "cad",
+  usd: "usd",
+  a$: "aud",
+  aud: "aud",
+  c$: "cad",
+  cad: "cad",
   "£": "gbp",
-  "gbp": "gbp",
+  gbp: "gbp",
   "€": "eur",
-  "eur": "eur",
-  "inr": "inr",
+  eur: "eur",
+  inr: "inr",
   "₹": "inr",
 };
 
 function toStripeCurrency(prop) {
   if (!prop || typeof prop !== "string") return "usd";
   const normalized = prop.trim().toLowerCase();
-  return CURRENCY_SYMBOL_TO_ISO[normalized] || (normalized.length === 3 ? normalized : "usd");
+  return (
+    CURRENCY_SYMBOL_TO_ISO[normalized] ||
+    (normalized.length === 3 ? normalized : "usd")
+  );
 }
 
 function requireStripe(req, res, next) {
   if (!stripe) {
+    const hint = isProduction
+      ? "Set STRIPE_SECRET_KEY to your live secret key (sk_live_...) in production."
+      : "Set STRIPE_TEST_SECRET_KEY (sk_test_...) for local dev, or STRIPE_SECRET_KEY.";
     return res.status(503).json({
-      message:
-        "Stripe is not configured. Set STRIPE_SECRET_KEY or STRIPE_TEST_SECRET_KEY in .env",
+      message: `Stripe is not configured. ${hint}`,
     });
   }
   next();
@@ -150,7 +192,7 @@ router.post(
         message: error.message || "Failed to create checkout session",
       });
     }
-  }
+  },
 );
 
 /**
@@ -173,10 +215,11 @@ router.post(
         });
       }
 
-      const plan = FEATURED_PLANS.find((p) => p.days === parseInt(durationDays));
+      const featuredPlans = await getFeaturedPlansFromDb();
+      const plan = featuredPlans.find((p) => p.days === parseInt(durationDays));
       if (!plan) {
         return res.status(400).json({
-          message: "Invalid duration. Valid: 7, 30, 90, 180, 365",
+          message: "Invalid duration for featured subscription",
         });
       }
 
@@ -185,7 +228,9 @@ router.post(
         return res.status(404).json({ message: "Property not found" });
       }
 
-      const propertyOwnerId = (property.owner?._id || property.owner).toString();
+      const propertyOwnerId = (
+        property.owner?._id || property.owner
+      ).toString();
       if (propertyOwnerId !== userId.toString()) {
         return res.status(403).json({
           message: "Not authorized. You can only feature your own properties.",
@@ -240,7 +285,7 @@ router.post(
         message: error.message || "Failed to create checkout session",
       });
     }
-  }
+  },
 );
 
 /**
@@ -264,10 +309,11 @@ router.post(
         });
       }
 
-      const plan = FEATURED_PLANS.find((p) => p.days === parseInt(durationDays));
+      const featuredPlans = await getFeaturedPlansFromDb();
+      const plan = featuredPlans.find((p) => p.days === parseInt(durationDays));
       if (!plan) {
         return res.status(400).json({
-          message: "Invalid duration. Valid: 7, 30, 90, 180, 365",
+          message: "Invalid duration for featured subscription",
         });
       }
 
@@ -276,7 +322,9 @@ router.post(
         return res.status(404).json({ message: "Property not found" });
       }
 
-      const propertyOwnerId = (property.owner?._id || property.owner).toString();
+      const propertyOwnerId = (
+        property.owner?._id || property.owner
+      ).toString();
       if (propertyOwnerId !== userId.toString()) {
         return res.status(403).json({
           message: "Not authorized. You can only feature your own properties.",
@@ -307,7 +355,7 @@ router.post(
         message: error.message || "Failed to create payment intent",
       });
     }
-  }
+  },
 );
 
 /**
@@ -330,7 +378,8 @@ router.post(
         });
       }
 
-      const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+      const paymentIntent =
+        await stripe.paymentIntents.retrieve(paymentIntentId);
       const meta = paymentIntent.metadata || {};
 
       if (paymentIntent.status !== "succeeded") {
@@ -358,7 +407,9 @@ router.post(
       }
 
       const userId = req.userType === "AGENCY" ? req.agency._id : req.user._id;
-      const propertyOwnerId = (property.owner?._id || property.owner).toString();
+      const propertyOwnerId = (
+        property.owner?._id || property.owner
+      ).toString();
       if (propertyOwnerId !== userId.toString()) {
         return res.status(403).json({ message: "Not authorized" });
       }
@@ -368,7 +419,7 @@ router.post(
         const currentExpiry = new Date(property.featuredUntil);
         if (currentExpiry > new Date()) {
           expiryDate.setTime(
-            currentExpiry.getTime() + durationDays * 24 * 60 * 60 * 1000
+            currentExpiry.getTime() + durationDays * 24 * 60 * 60 * 1000,
           );
         } else {
           expiryDate.setDate(expiryDate.getDate() + durationDays);
@@ -392,7 +443,7 @@ router.post(
         message: error.message || "Failed to confirm payment",
       });
     }
-  }
+  },
 );
 
 /**
@@ -431,7 +482,7 @@ export const handleWebhook = async (req, res) => {
               const currentExpiry = new Date(property.featuredUntil);
               if (currentExpiry > new Date()) {
                 expiryDate.setTime(
-                  currentExpiry.getTime() + durationDays * 24 * 60 * 60 * 1000
+                  currentExpiry.getTime() + durationDays * 24 * 60 * 60 * 1000,
                 );
               } else {
                 expiryDate.setDate(expiryDate.getDate() + durationDays);
@@ -443,7 +494,7 @@ export const handleWebhook = async (req, res) => {
             property.featuredUntil = expiryDate;
             await property.save();
             console.log(
-              `Featured (PaymentIntent) completed for property ${propertyId}`
+              `Featured (PaymentIntent) completed for property ${propertyId}`,
             );
           }
         }
@@ -470,7 +521,7 @@ export const handleWebhook = async (req, res) => {
               const currentExpiry = new Date(property.featuredUntil);
               if (currentExpiry > new Date()) {
                 expiryDate.setTime(
-                  currentExpiry.getTime() + durationDays * 24 * 60 * 60 * 1000
+                  currentExpiry.getTime() + durationDays * 24 * 60 * 60 * 1000,
                 );
               } else {
                 expiryDate.setDate(expiryDate.getDate() + durationDays);
@@ -481,7 +532,9 @@ export const handleWebhook = async (req, res) => {
             property.featured = true;
             property.featuredUntil = expiryDate;
             await property.save();
-            console.log(`Featured subscription completed for property ${propertyId}`);
+            console.log(
+              `Featured subscription completed for property ${propertyId}`,
+            );
           }
         }
       } else {
@@ -499,7 +552,9 @@ export const handleWebhook = async (req, res) => {
             soldOut: true,
           });
 
-          console.log(`Purchase completed: ${purchase._id} for property ${purchase.property}`);
+          console.log(
+            `Purchase completed: ${purchase._id} for property ${purchase.property}`,
+          );
         }
       }
     } catch (err) {

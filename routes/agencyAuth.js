@@ -105,6 +105,13 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
+    if (agency.isActive === false) {
+      return res.status(403).json({
+        message:
+          "This account has been deactivated. Please contact support if you need access.",
+      });
+    }
+
     // Return agency data (no tokens, no cookies)
     res.json({
       message: "Login successful",
@@ -117,6 +124,7 @@ router.post("/login", async (req, res) => {
         city: agency.city,
         country: agency.country,
         isApproved: agency.isApproved,
+        isActive: agency.isActive !== false,
       },
     });
   } catch (error) {
@@ -222,6 +230,7 @@ router.get("/me", authenticate, isAgency, async (req, res) => {
         logoUrl: req.agency.logoUrl,
         images: req.agency.images || [],
         isApproved: req.agency.isApproved,
+        isActive: req.agency.isActive !== false,
       },
     });
   } catch (error) {

@@ -75,5 +75,5 @@ const universityApplicationSchema = new mongoose.Schema({
 
 export default mongoose.model(
   "UniversityApplication",
-  universityApplicationSchema
+  universityApplicationSchema,
 );

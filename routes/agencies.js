@@ -10,7 +10,7 @@ router.get("/", async (req, res) => {
   try {
     const { category, city, country, limit, q } = req.query;
 
-    let query = { isApproved: true };
+    let query = { isApproved: true, isActive: { $ne: false } };
 
     if (category) {
       query.category = category;
@@ -62,6 +62,7 @@ router.get("/available-categories", async (req, res) => {
     // Find all approved agencies in the specified country
     const agencies = await Agency.find({
       isApproved: true,
+      isActive: { $ne: false },
       country: new RegExp(`^${country}$`, "i"),
     }).select("category");
 
@@ -202,6 +203,10 @@ router.get("/:id", async (req, res) => {
       return res.status(404).json({ message: "Agency not found" });
     }
 
+    if (!agency.isApproved || agency.isActive === false) {
+      return res.status(404).json({ message: "Agency not found" });
+    }
+
     // Get statistics
     const inquiryCount = await AgencyInquiry.countDocuments({
       agency: req.params.id,
@@ -243,6 +248,9 @@ router.post("/:id/contact", async (req, res) => {
 
     const agency = await Agency.findById(req.params.id);
     if (!agency) {
+      return res.status(404).json({ message: "Agency not found" });
+    }
+    if (!agency.isApproved || agency.isActive === false) {
       return res.status(404).json({ message: "Agency not found" });
     }
 

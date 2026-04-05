@@ -2,6 +2,7 @@ import express from "express";
 import UniversityGroup from "../models/UniversityGroup.js";
 import ChatMessage from "../models/ChatMessage.js";
 import { authenticate } from "../middleware/auth.js";
+import { parsePagination, escapeRegex } from "../utils/adminPagination.js";
 
 const router = express.Router();
 
@@ -16,26 +17,78 @@ function autoJoinSocketRoom(io, userId, roomName) {
   }
 }
 
-// GET /api/groups - List all university groups
+// GET /api/groups - List university groups (optional admin=1 + page for paginated admin UI)
 router.get("/", async (req, res) => {
   try {
-    const { country, university, limit = 50 } = req.query;
-    const query = { isActive: true };
+    const { country, university, limit: limitQ, joined, search } = req.query;
+    const userId = req.headers["x-user-id"];
+    const adminList =
+      req.query.admin === "1" && req.headers["x-user-type"] === "ADMIN";
 
-    if (country) {
-      query.country = country;
+    const query = {};
+    const joinedOnly = joined === "true" || joined === "1";
+
+    if (!adminList) {
+      query.isActive = true;
+    } else if (req.query.isActive === "true") {
+      query.isActive = true;
+    } else if (req.query.isActive === "false") {
+      query.isActive = false;
+    }
+
+    if (joinedOnly) {
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      query.members = userId;
+    } else if (country) {
+      const escaped = escapeRegex(String(country).trim());
+      query.country = new RegExp(`^${escaped}$`, "i");
     }
     if (university) {
       query.university = { $regex: university, $options: "i" };
     }
+    if (adminList && typeof search === "string" && search.trim()) {
+      const safe = escapeRegex(search.trim());
+      query.$or = [
+        { name: { $regex: safe, $options: "i" } },
+        { university: { $regex: safe, $options: "i" } },
+        { country: { $regex: safe, $options: "i" } },
+      ];
+    }
 
-    const groups = await UniversityGroup.find(query)
+    let skip = 0;
+    let limitVal;
+    let page = 1;
+
+    if (adminList) {
+      const p = parsePagination(req, { defaultLimit: 25, maxLimit: 200 });
+      page = p.page;
+      limitVal = p.limit;
+      skip = p.skip;
+    } else {
+      limitVal = joinedOnly
+        ? Math.min(parseInt(limitQ, 10) || 100, 200)
+        : Math.min(parseInt(limitQ, 10) || 50, 200);
+    }
+
+    const findBase = UniversityGroup.find(query)
       .populate("createdBy", "name email")
       .sort({ createdAt: -1 })
-      .limit(parseInt(limit));
+      .skip(skip)
+      .limit(limitVal);
 
-    // Add member count and user's membership status
-    const userId = req.headers["x-user-id"];
+    let groups;
+    let total;
+    if (adminList) {
+      [total, groups] = await Promise.all([
+        UniversityGroup.countDocuments(query),
+        findBase,
+      ]);
+    } else {
+      groups = await findBase;
+    }
+
     const groupsWithDetails = groups.map((group) => {
       const groupObj = group.toObject();
       groupObj.memberCount = group.members.length;
@@ -45,10 +98,21 @@ router.get("/", async (req, res) => {
       return groupObj;
     });
 
-    res.json({
-      groups: groupsWithDetails,
-      count: groupsWithDetails.length,
-    });
+    if (adminList) {
+      res.json({
+        groups: groupsWithDetails,
+        total,
+        page,
+        limit: limitVal,
+        hasMore: skip + groupsWithDetails.length < total,
+        count: groupsWithDetails.length,
+      });
+    } else {
+      res.json({
+        groups: groupsWithDetails,
+        count: groupsWithDetails.length,
+      });
+    }
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -202,7 +266,9 @@ router.get("/:id/messages", authenticate, async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
     const before = req.query.before;
 
-    const query = { group: req.params.id, isDeleted: { $ne: true } };
+    // Include soft-deleted messages so clients can show placeholders and avoid
+    // resurrecting deleted rows from local cache on merge.
+    const query = { group: req.params.id };
     if (before) {
       query.createdAt = { $lt: new Date(before) };
     }

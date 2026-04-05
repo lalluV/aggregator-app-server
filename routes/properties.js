@@ -39,6 +39,29 @@ router.post("/", authenticate, isCustomerOrAgency, async (req, res) => {
       });
     }
 
+    const normalizedUniversities = Array.isArray(nearbyUniversities)
+      ? nearbyUniversities
+          .filter(
+            (u) =>
+              u &&
+              String(u.name || "").trim() &&
+              typeof u.miles === "number" &&
+              !Number.isNaN(u.miles) &&
+              u.miles > 0,
+          )
+          .map((u) => ({
+            name: String(u.name).trim(),
+            miles: Number(u.miles),
+          }))
+      : [];
+
+    if (normalizedUniversities.length < 1) {
+      return res.status(400).json({
+        message:
+          "At least one nearby university with name and distance (miles) greater than 0 is required",
+      });
+    }
+
     // Only admin can create "project" type (via /api/admin/properties)
     if (propertyType === "project") {
       return res.status(403).json({
@@ -93,14 +116,7 @@ router.post("/", authenticate, isCustomerOrAgency, async (req, res) => {
       country,
       address: address || "",
       nearbyPlaces: nearbyPlaces || "",
-      nearbyUniversities: Array.isArray(nearbyUniversities)
-        ? nearbyUniversities
-            .filter((u) => u && u.name && typeof u.miles === "number")
-            .map((u) => ({
-              name: String(u.name).trim(),
-              miles: Number(u.miles),
-            }))
-        : [],
+      nearbyUniversities: normalizedUniversities,
       photos: normalizedPhotos,
       bedrooms: bedrooms ? parseInt(bedrooms) : undefined,
       bathrooms: bathrooms ? parseInt(bathrooms) : undefined,
@@ -158,7 +174,7 @@ router.get("/", async (req, res) => {
       limit = 20,
     } = req.query;
 
-    let query = { active: true };
+    let query = { active: true, soldOut: { $ne: true } };
 
     if (country) {
       // Filter by country name (case-insensitive)
@@ -404,6 +420,13 @@ router.post("/:id/interest", async (req, res) => {
       return res.status(404).json({ message: "Property not found" });
     }
 
+    if (property.soldOut) {
+      return res.status(400).json({
+        message:
+          "This property is sold out. Submit requirements instead of interest.",
+      });
+    }
+
     const interest = await Interest.create({
       property: req.params.id,
       name,
@@ -477,6 +500,7 @@ router.put("/:id", authenticate, isCustomerOrAgency, async (req, res) => {
       "longitude",
       "active",
       "projectUrl",
+      "soldOut",
     ];
 
     allowedFields.forEach((field) => {
@@ -490,7 +514,8 @@ router.put("/:id", authenticate, isCustomerOrAgency, async (req, res) => {
         } else if (
           field === "furnished" ||
           field === "petsAllowed" ||
-          field === "active"
+          field === "active" ||
+          field === "soldOut"
         ) {
           property[field] =
             req.body[field] === true || req.body[field] === "true";

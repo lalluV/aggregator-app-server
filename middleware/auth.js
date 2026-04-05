@@ -36,6 +36,9 @@ export const authenticate = async (req, res, next) => {
         console.error("Email mismatch:", { agencyEmail: agency.email, providedEmail: userEmail });
         return res.status(401).json({ message: "Invalid credentials" });
       }
+      if (agency.isActive === false) {
+        return res.status(403).json({ message: "Agency account is inactive" });
+      }
       req.agency = agency;
       req.userType = "AGENCY";
     } else {

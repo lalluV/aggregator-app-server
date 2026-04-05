@@ -84,6 +84,11 @@ const agencySchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  /** When false, agency is hidden from public listings and cannot use the API or log in. */
+  isActive: {
+    type: Boolean,
+    default: true,
+  },
   // Professional enhancement fields
   businessHours: {
     type: String,

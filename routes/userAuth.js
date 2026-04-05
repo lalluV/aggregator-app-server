@@ -124,16 +124,16 @@ router.patch("/profile", authenticate, async (req, res) => {
   try {
     const { name, phone } = req.body;
     const updateData = {};
-    if (name !== undefined && String(name).trim()) updateData.name = String(name).trim();
+    if (name !== undefined && String(name).trim())
+      updateData.name = String(name).trim();
     if (phone !== undefined) updateData.phone = String(phone).trim();
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({ message: "No valid fields to update" });
     }
-    const user = await User.findByIdAndUpdate(
-      req.user._id,
-      updateData,
-      { new: true, runValidators: true }
-    );
+    const user = await User.findByIdAndUpdate(req.user._id, updateData, {
+      new: true,
+      runValidators: true,
+    });
     res.json({
       message: "Profile updated successfully",
       user: {

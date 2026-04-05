@@ -49,6 +49,16 @@ const directMessageSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  /** Set when recipient’s device is in the room (server relay). */
+  deliveredAt: {
+    type: Date,
+    default: null,
+  },
+  /** Set when recipient marks messages seen (socket). */
+  readAt: {
+    type: Date,
+    default: null,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

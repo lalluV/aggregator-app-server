@@ -382,10 +382,65 @@ io.on("connection", (socket) => {
     io.to(`group_${groupId}`).emit("message_edited", message);
   });
 
-  // Handle message delete
-  socket.on("delete_message", (data) => {
-    const { groupId, messageId } = data;
-    io.to(`group_${groupId}`).emit("message_deleted", { messageId });
+  // Handle message delete (soft-delete in DB + broadcast)
+  socket.on("delete_message", async (data, callback) => {
+    const { groupId, messageId } = data || {};
+    if (!socket.userId || !groupId || !messageId) {
+      if (typeof callback === "function") {
+        callback({ ok: false, error: "Invalid payload" });
+      }
+      return;
+    }
+    const roomName = `group_${groupId}`;
+    if (!socket.rooms.has(roomName)) {
+      if (typeof callback === "function") {
+        callback({ ok: false, error: "Not in group room" });
+      }
+      return;
+    }
+    const mid = String(messageId);
+    if (!/^[0-9a-f]{24}$/i.test(mid)) {
+      if (typeof callback === "function") {
+        callback({ ok: false, error: "Invalid message id" });
+      }
+      return;
+    }
+    try {
+      const msg = await ChatMessage.findOne({
+        _id: mid,
+        group: groupId,
+      });
+      if (!msg) {
+        if (typeof callback === "function") {
+          callback({ ok: false, error: "Message not found" });
+        }
+        return;
+      }
+      if (msg.sender.toString() !== socket.userId) {
+        if (typeof callback === "function") {
+          callback({ ok: false, error: "Not allowed" });
+        }
+        return;
+      }
+      msg.isDeleted = true;
+      msg.content = "This message has been deleted";
+      msg.messageType = "text";
+      msg.mediaUrl = undefined;
+      msg.fileName = undefined;
+      await msg.save();
+      io.to(roomName).emit("message_deleted", {
+        groupId,
+        messageId: msg._id.toString(),
+      });
+      if (typeof callback === "function") {
+        callback({ ok: true });
+      }
+    } catch (err) {
+      console.error("delete_message:", err.message);
+      if (typeof callback === "function") {
+        callback({ ok: false, error: "Failed to delete message" });
+      }
+    }
   });
 
   // Handle reaction
@@ -458,6 +513,7 @@ io.on("connection", (socket) => {
 
     // Persist to DB (fire-and-forget for speed, but attach the real _id to the broadcast)
     let savedMessage = message;
+    let persistedMessageId = null;
     try {
       const userType = message.sender?.type === "Agency" ? "Agency" : "User";
       const doc = await DirectMessage.create({
@@ -474,6 +530,7 @@ io.on("connection", (socket) => {
         createdAt: message.createdAt || new Date(),
       });
 
+      persistedMessageId = doc._id;
       savedMessage = {
         ...message,
         _id: doc._id.toString(),
@@ -497,6 +554,11 @@ io.on("connection", (socket) => {
         chatId,
         messageId: savedMessage._id,
       });
+      if (persistedMessageId) {
+        DirectMessage.findByIdAndUpdate(persistedMessageId, {
+          deliveredAt: new Date(),
+        }).catch(() => {});
+      }
     }
     if (typeof callback === "function") {
       callback({ ok: true, messageId: savedMessage._id });
@@ -505,6 +567,66 @@ io.on("connection", (socket) => {
     // Push notification to offline participant (fire-and-forget)
     if (isFirebaseReady()) {
       pushToOfflineDirectRecipient(chatId, socket.userId, savedMessage);
+    }
+  });
+
+  socket.on("delete_direct_message", async (data, callback) => {
+    const { chatId, messageId } = data || {};
+    if (!socket.userId || !chatId || !messageId) {
+      if (typeof callback === "function") {
+        callback({ ok: false, error: "Invalid payload" });
+      }
+      return;
+    }
+    const roomName = `direct_${chatId}`;
+    if (!socket.rooms.has(roomName)) {
+      if (typeof callback === "function") {
+        callback({ ok: false, error: "Not in direct chat room" });
+      }
+      return;
+    }
+    const mid = String(messageId);
+    if (!/^[0-9a-f]{24}$/i.test(mid)) {
+      if (typeof callback === "function") {
+        callback({ ok: false, error: "Invalid message id" });
+      }
+      return;
+    }
+    try {
+      const msg = await DirectMessage.findOne({
+        _id: mid,
+        directChat: chatId,
+      });
+      if (!msg) {
+        if (typeof callback === "function") {
+          callback({ ok: false, error: "Message not found" });
+        }
+        return;
+      }
+      if (msg.sender.toString() !== socket.userId) {
+        if (typeof callback === "function") {
+          callback({ ok: false, error: "Not allowed" });
+        }
+        return;
+      }
+      msg.isDeleted = true;
+      msg.content = "This message has been deleted";
+      msg.messageType = "text";
+      msg.mediaUrl = undefined;
+      msg.fileName = undefined;
+      await msg.save();
+      io.to(roomName).emit("direct_message_deleted", {
+        chatId,
+        messageId: msg._id.toString(),
+      });
+      if (typeof callback === "function") {
+        callback({ ok: true });
+      }
+    } catch (err) {
+      console.error("delete_direct_message:", err.message);
+      if (typeof callback === "function") {
+        callback({ ok: false, error: "Failed to delete message" });
+      }
     }
   });
 
@@ -542,7 +664,7 @@ io.on("connection", (socket) => {
     socket.to(roomName).emit("group_messages_read", { groupId, messageIds });
   });
 
-  socket.on("direct_messages_seen", (data) => {
+  socket.on("direct_messages_seen", async (data) => {
     const { chatId, messageIds } = data || {};
     if (
       !socket.userId ||
@@ -554,6 +676,19 @@ io.on("connection", (socket) => {
     }
     const roomName = `direct_${chatId}`;
     if (!socket.rooms.has(roomName)) return;
+    const now = new Date();
+    try {
+      await DirectMessage.updateMany(
+        {
+          _id: { $in: messageIds },
+          directChat: chatId,
+          isDeleted: { $ne: true },
+        },
+        { $set: { readAt: now } },
+      );
+    } catch (e) {
+      console.error("direct_messages_seen persist:", e.message);
+    }
     socket.to(roomName).emit("direct_messages_read", { chatId, messageIds });
   });
 
