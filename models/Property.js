@@ -179,19 +179,28 @@ propertySchema.pre(/^find/, function (next) {
 // Post-find hook to automatically clean up expired featured properties
 propertySchema.post(/^find/, async function (docs) {
   if (!docs) return;
-  
+
   const now = new Date();
   const docsArray = Array.isArray(docs) ? docs : [docs];
-  
+
   for (const doc of docsArray) {
-    if (doc && doc.featured && doc.featuredUntil && new Date(doc.featuredUntil) < now) {
+    if (
+      doc &&
+      doc.featured &&
+      doc.featuredUntil &&
+      new Date(doc.featuredUntil) < now
+    ) {
       try {
         doc.featured = false;
         doc.featuredUntil = null;
         await doc.save({ validateBeforeSave: false });
       } catch (err) {
         // Do not fail the parent query (e.g. Favorite.populate("property"))
-        console.error("Featured expiry save failed for property:", doc._id, err);
+        console.error(
+          "Featured expiry save failed for property:",
+          doc._id,
+          err,
+        );
       }
     }
   }

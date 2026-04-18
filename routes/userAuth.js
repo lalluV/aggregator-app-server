@@ -1,10 +1,31 @@
 import express from "express";
 import bcrypt from "bcrypt";
+import crypto from "crypto";
 import User from "../models/User.js";
 import Agency from "../models/Agency.js";
 import { authenticate } from "../middleware/auth.js";
+import { sendPasswordResetOtpEmail } from "../utils/emailjs.js";
 
 const router = express.Router();
+/** OTP expiry (minutes). Prefer RESET_OTP_TTL_MINUTES, else legacy RESET_PASSWORD_TTL_MINUTES, default 15. */
+const RESET_OTP_TTL_MINUTES = Number(
+  process.env.RESET_OTP_TTL_MINUTES ||
+    process.env.RESET_PASSWORD_TTL_MINUTES ||
+    15,
+);
+const DEFAULT_USER_INFO_URL =
+  process.env.USER_RESET_PASSWORD_URL ||
+  process.env.RESET_PASSWORD_WEB_URL ||
+  "https://safeaven.com/auth/customer/forgot-password";
+
+function generateSixDigitOtp() {
+  return String(crypto.randomInt(100000, 1000000));
+}
+
+function normalizeOtpInput(raw) {
+  const digits = String(raw ?? "").replace(/\D/g, "");
+  return digits.length === 6 ? digits : null;
+}
 
 // POST /api/users/register
 router.post("/register", async (req, res) => {
@@ -86,6 +107,102 @@ router.post("/login", async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+});
+
+// POST /api/users/forgot-password
+router.post("/forgot-password", async (req, res) => {
+  try {
+    const email = String(req.body?.email || "")
+      .trim()
+      .toLowerCase();
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    const user = await User.findOne({ email });
+    if (user) {
+      const otp = generateSixDigitOtp();
+      const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
+      const resetExpiresAt = new Date(
+        Date.now() + RESET_OTP_TTL_MINUTES * 60 * 1000,
+      );
+
+      user.resetPasswordTokenHash = otpHash;
+      user.resetPasswordExpiresAt = resetExpiresAt;
+      await user.save();
+
+      try {
+        await sendPasswordResetOtpEmail({
+          toEmail: email,
+          toName: user.name,
+          verificationCode: otp,
+          infoUrl: DEFAULT_USER_INFO_URL,
+          expiresInMinutes: RESET_OTP_TTL_MINUTES,
+          accountType: "customer",
+        });
+      } catch (emailError) {
+        console.error(
+          "Failed to send user password reset email:",
+          emailError.message,
+        );
+      }
+    }
+
+    return res.json({
+      message:
+        "If an account with that email exists, a verification code has been sent to your email.",
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+// POST /api/users/reset-password — body: { email, code, password } (6-digit OTP only)
+router.post("/reset-password", async (req, res) => {
+  try {
+    const email = String(req.body?.email || "")
+      .trim()
+      .toLowerCase();
+    const otp = normalizeOtpInput(req.body?.code);
+    const newPassword = String(req.body?.password || "");
+
+    if (!email || !otp || !newPassword) {
+      return res
+        .status(400)
+        .json({
+          message: "Email, 6-digit verification code, and password are required",
+        });
+    }
+
+    if (newPassword.length < 6) {
+      return res
+        .status(400)
+        .json({ message: "Password must be at least 6 characters" });
+    }
+
+    const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
+
+    const user = await User.findOne({
+      email,
+      resetPasswordTokenHash: otpHash,
+      resetPasswordExpiresAt: { $gt: new Date() },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        message: "Invalid or expired verification code",
+      });
+    }
+
+    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    user.resetPasswordTokenHash = null;
+    user.resetPasswordExpiresAt = null;
+    await user.save();
+
+    return res.json({ message: "Password reset successful" });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
   }
 });
 

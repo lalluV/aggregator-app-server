@@ -17,6 +17,14 @@ const agencySchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  resetPasswordTokenHash: {
+    type: String,
+    default: null,
+  },
+  resetPasswordExpiresAt: {
+    type: Date,
+    default: null,
+  },
   category: {
     type: [String],
     required: true,
