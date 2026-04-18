@@ -60,6 +60,12 @@ export async function sendPasswordResetOtpEmail({
 
   if (!response.ok) {
     const errBody = await response.text();
-    throw new Error(`EmailJS request failed (${response.status}): ${errBody}`);
+    const hint =
+      response.status === 403
+        ? " Turn on “Allow EmailJS API for non-browser applications” in EmailJS → Account → Security (https://dashboard.emailjs.com/admin/account/security)."
+        : "";
+    throw new Error(
+      `EmailJS request failed (${response.status}): ${errBody}${hint}`,
+    );
   }
 }

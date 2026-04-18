@@ -1,7 +1,7 @@
+import "./loadEnv.js";
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
-import dotenv from "dotenv";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import morgan from "morgan";
@@ -32,9 +32,6 @@ import {
   sendPushNotifications,
   isFirebaseReady,
 } from "./utils/firebase.js";
-
-// Load env variables
-dotenv.config();
 
 // Connect to database
 connectDB();
