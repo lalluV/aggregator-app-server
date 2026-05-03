@@ -5,6 +5,7 @@ import User from "../models/User.js";
 import Agency from "../models/Agency.js";
 import { authenticate } from "../middleware/auth.js";
 import { sendPasswordResetOtpEmail } from "../utils/emailjs.js";
+import { deleteCustomerUserData } from "../utils/deleteUserAccount.js";
 
 const router = express.Router();
 /** OTP expiry (minutes). Prefer RESET_OTP_TTL_MINUTES, else legacy RESET_PASSWORD_TTL_MINUTES, default 15. */
@@ -233,6 +234,48 @@ router.get("/me", authenticate, async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+});
+
+// DELETE /api/users/account — permanent customer account deletion (password required)
+router.delete("/account", authenticate, async (req, res) => {
+  try {
+    if (req.userType === "AGENCY") {
+      return res.status(403).json({
+        message: "Agency accounts cannot be deleted through this endpoint",
+      });
+    }
+    if (req.userType === "ADMIN") {
+      return res.status(403).json({
+        message: "Admin accounts cannot be deleted through this endpoint",
+      });
+    }
+    if (req.userType !== "USER") {
+      return res.status(403).json({ message: "Not allowed" });
+    }
+
+    const password = String(req.body?.password || "");
+    if (!password) {
+      return res.status(400).json({ message: "Password is required" });
+    }
+
+    const userId = req.user._id;
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) {
+      return res.status(401).json({ message: "Invalid password" });
+    }
+
+    await deleteCustomerUserData(userId);
+    await User.findByIdAndDelete(userId);
+
+    return res.json({ message: "Account deleted successfully" });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
   }
 });
 
